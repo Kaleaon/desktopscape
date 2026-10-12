@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peoria 4K Gaussian Splat Desktop Engine</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Collapsible Toggle -->
+  <button id="dashboard-toggle" title="Toggle Peoria Controls">
+    <span id="toggle-icon">⚙️</span>
+    <span>Peoria Splat Dashboard</span>
+  </button>
+
+  <!-- Control Dashboard Overlay -->
+  <div id="dashboard">
+    <div class="header-bar">
+      <div class="app-title">
+        <span>PEORIA 4K SPLAT ENGINE</span>
+        <span class="badge badge-ice" id="mode-badge">WINDOW</span>
+      </div>
+      <div class="peoria-status-widget">
+        <span id="widget-scene">Peoria Riverfront</span>
+        <span id="widget-temp">72°F | Clear</span>
+        <span id="widget-ice">Ice: 0%</span>
+      </div>
+    </div>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="scenes">Landmarks</button>
+      <button class="tab-btn" data-tab="time">Solar / Time</button>
+      <button class="tab-btn" data-tab="weather">Weather / Ice</button>
+      <button class="tab-btn" data-tab="youtube">YouTube 4K</button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Scene Selector Panel -->
+      <div class="tab-panel active" id="panel-scenes">
+        <div class="control-group">
+          <label class="control-label">3D Gaussian Splat Landmark Scenes</label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-scene-riverfront">🌊 Peoria Riverfront</button>
+            <button class="btn" id="btn-scene-skyline">🏙️ Downtown Skyline</button>
+            <button class="btn" id="btn-scene-grandview">🏞️ Grandview Drive</button>
+            <button class="btn" id="btn-scene-custom" disabled>📹 YouTube Custom</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">
+            <span>Camera Perspective</span>
+            <span id="camera-val">Orbit</span>
+          </label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-cam-orbit">Orbit View</button>
+            <button class="btn" id="btn-cam-tour">River Tour</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time & Solar Panel -->
+      <div class="tab-panel" id="panel-time">
+        <div class="control-group">
+          <label class="control-label">
+            <span>Solar Time of Day</span>
+            <span id="time-val">12:00 PM</span>
+          </label>
+          <div class="slider-container">
+            <input type="range" id="slider-time" min="0" max="24" step="0.25" value="12">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Lighting Quick Presets</label>
+          <div class="grid-buttons">
+            <button class="btn" id="btn-time-dawn">🌅 Dawn (6 AM)</button>
+            <button class="btn" id="btn-time-noon">☀️ Midday (12 PM)</button>
+            <button class="btn" id="btn-time-sunset">🌇 Sunset (6:30 PM)</button>
+            <button class="btn" id="btn-time-night">🌃 Night Lights (10 PM)</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <button class="btn" id="btn-toggle-autosync">🔄 Auto Sync Local Clock</button>
+        </div>
+      </div>
+
+      <!-- Weather & Winter River Ice Panel -->
+      <div class="tab-panel" id="panel-weather">
+        <div class="control-group">
+          <label class="control-label">Environmental Presets</label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-wx-clear">☀️ Clear Skies</button>
+            <button class="btn" id="btn-wx-rain">🌧️ Peoria Rain</button>
+            <button class="btn" id="btn-wx-snow">❄️ Heavy Snow</button>
+            <button class="btn" id="btn-wx-fog">🌫️ River Fog</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">
+            <span>Winter River Freeze (Illinois River)</span>
+            <span id="ice-val">0% Ice</span>
+          </label>
+          <div class="slider-container">
+            <input type="range" id="slider-ice" min="0" max="1" step="0.05" value="0">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">
+            <span>Temperature</span>
+            <span id="temp-val">72°F</span>
+          </label>
+          <div class="slider-container">
+            <input type="range" id="slider-temp" min="-20" max="100" step="1" value="72">
+          </div>
+        </div>
+      </div>
+
+      <!-- YouTube 4K Peoria Ingestion Panel -->
+      <div class="tab-panel" id="panel-youtube">
+        <div class="control-group">
+          <label class="control-label">Convert YouTube 4K Peoria Video to Splat</label>
+          <input type="text" id="youtube-url-input" placeholder="Paste YouTube Peoria 4K Video URL...">
+          <button class="btn active" id="btn-process-youtube" style="margin-top: 6px;">
+            ⚡ Extract 3D Gaussian Splats
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Sample Peoria 4K YouTube Sources</label>
+          <div class="grid-buttons">
+            <button class="btn" id="btn-yt-sample1">🛸 Peoria 4K Drone</button>
+            <button class="btn" id="btn-yt-sample2">🌉 Murray Baker Aerial</button>
+          </div>
+        </div>
+
+        <div class="status-box" id="youtube-status">
+          Ready to ingest 4K spatial keyframes from YouTube.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
