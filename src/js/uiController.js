@@ -120,32 +120,21 @@ export class UIController {
         }
       });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
-      window.electronAPI.onSetWeather((params) => {
-        if (params.preset) {
-          this.setWeather(params.preset);
-        } else {
-          this.app.envEngine.setWeather(params);
+      window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      window.electronAPI.onSetTimeMode((mode) => {
+        if (mode === 'auto') {
+          this.app.envEngine.autoSyncClock = true;
+          const autoBtn = document.getElementById('btn-toggle-autosync');
+          if (autoBtn) autoBtn.classList.add('active');
         }
       });
       window.electronAPI.onDesktopModeChanged((isDesktop) => {
         const badge = document.getElementById('mode-badge');
         if (badge) {
-          badge.textContent = isDesktop ? 'DESKTOP WALLPAPER' : 'WINDOW';
-          badge.classList.toggle('badge-desktop', isDesktop);
+          badge.textContent = isDesktop ? 'WALLPAPER' : 'WINDOW';
+          badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
         }
       });
-    }
-  }
-
-  setCameraMode(mode) {
-    document.querySelectorAll('#btn-cam-orbit, #btn-cam-tour').forEach(b => b.classList.remove('active'));
-    const btn = document.getElementById(`btn-cam-${mode}`);
-    if (btn) btn.classList.add('active');
-
-    this.app.setCameraMode(mode);
-    const camVal = document.getElementById('camera-val');
-    if (camVal) {
-      camVal.textContent = mode === 'tour' ? 'River Tour' : 'Orbit View';
     }
   }
   }
