@@ -2,6 +2,7 @@ import { GaussianSplatRenderer } from './splatRenderer.js';
 import { EnvironmentEngine } from './environmentEngine.js';
 import { YouTubePipelineClient } from './youtubePipeline.js';
 import { UIController } from './uiController.js';
+import { IncrementalSplatModel } from './incrementalIngestionEngine.js';
 import {
   generatePeoriaRiverfrontScene,
   generatePeoriaSkylineScene,
@@ -24,10 +25,13 @@ class PeoriaDesktopscapeApp {
     // 3. YouTube 4K Video Splat Pipeline
     this.ytPipeline = new YouTubePipelineClient(this);
 
-    // 4. UI Controls Overlay
+    // 4. Incremental Scene Model & Fusion State
+    this.incrementalModel = new IncrementalSplatModel();
+
+    // 5. UI Controls Overlay
     this.uiController = new UIController(this);
 
-    // Load Default Scene (Peoria Riverfront & Illinois River)
+    // Load Default Base Scene (Peoria Riverfront & Illinois River)
     this.loadScene('riverfront');
 
     // Start Render Loop
@@ -65,8 +69,29 @@ class PeoriaDesktopscapeApp {
         break;
     }
 
-    this.splatRenderer.loadSplatData(sceneData);
+    this.incrementalModel.initFromBaseScene(sceneData);
+    const fusedData = this.incrementalModel.getSplatData();
+
+    this.splatRenderer.loadSplatData(fusedData);
     this.envEngine.updateLighting();
+
+    if (this.uiController && this.uiController.updateIngestionStats) {
+      this.uiController.updateIngestionStats(this.incrementalModel.getStatistics());
+    }
+  }
+
+  ingestMediaIncremental(splatData, options = {}) {
+    const result = this.incrementalModel.mergeKeyframeSplats(splatData, options);
+    const updatedModelData = this.incrementalModel.getSplatData();
+
+    this.splatRenderer.loadSplatData(updatedModelData);
+    this.envEngine.updateLighting();
+
+    if (this.uiController && this.uiController.updateIngestionStats) {
+      this.uiController.updateIngestionStats(this.incrementalModel.getStatistics());
+    }
+
+    return result;
   }
 
   animate() {

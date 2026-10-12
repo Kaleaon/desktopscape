@@ -34,7 +34,7 @@
       <button class="tab-btn active" data-tab="scenes">Landmarks</button>
       <button class="tab-btn" data-tab="time">Solar / Time</button>
       <button class="tab-btn" data-tab="weather">Weather / Ice</button>
-      <button class="tab-btn" data-tab="youtube">YouTube 4K</button>
+      <button class="tab-btn" data-tab="youtube">Video & Photo Pipeline</button>
     </div>
 
     <div class="tab-content">
@@ -122,18 +122,47 @@
         </div>
       </div>
 
-      <!-- YouTube 4K Peoria Ingestion Panel -->
+      <!-- Video & Photo Pipeline Ingestion Panel (Multi-Temporal & Incremental) -->
       <div class="tab-panel" id="panel-youtube">
         <div class="control-group">
-          <label class="control-label">Convert YouTube 4K Peoria Video to Splat</label>
-          <input type="text" id="youtube-url-input" placeholder="Paste YouTube Peoria 4K Video URL...">
-          <button class="btn active" id="btn-process-youtube" style="margin-top: 6px;">
-            ⚡ Extract 3D Gaussian Splats
-          </button>
+          <label class="control-label">Video & Photo Source URL / Input</label>
+          <input type="text" id="youtube-url-input" placeholder="Paste YouTube 4K or Photo Batch URL...">
         </div>
 
         <div class="control-group">
-          <label class="control-label">Sample Peoria 4K YouTube Sources</label>
+          <label class="control-label">1. View-Angle & Camera Registration</label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-pose-drone" data-pose="drone-aerial">🚁 Drone Aerial (45°)</button>
+            <button class="btn" id="btn-pose-ground" data-pose="ground-eye">🚶 Ground Level</button>
+            <button class="btn" id="btn-pose-bluff" data-pose="bluff-overlook">🏞️ Bluff Overlook</button>
+            <button class="btn" id="btn-pose-oblique" data-pose="side-oblique">📐 Side Oblique</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">2. Temporal Change & Season Delta</label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-season-summer" data-season="summer">🌿 Summer Green</button>
+            <button class="btn" id="btn-season-autumn" data-season="autumn">🍁 Autumn Gold</button>
+            <button class="btn" id="btn-season-winter" data-season="winter">🧊 Winter Ice</button>
+            <button class="btn" id="btn-season-spring" data-season="spring">🌸 Spring Bloom</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">3. Incremental Pipeline Action</label>
+          <div class="grid-buttons">
+            <button class="btn active" id="btn-process-youtube">
+              ⚡ Merge Keyframe Features
+            </button>
+            <button class="btn" id="btn-reset-model">
+              🔄 Reset Base Model
+            </button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Sample Peoria 4K Media Sources</label>
           <div class="grid-buttons">
             <button class="btn" id="btn-yt-sample1">🛸 Peoria 4K Drone</button>
             <button class="btn" id="btn-yt-sample2">🌉 Murray Baker Aerial</button>
@@ -142,6 +171,16 @@
 
         <div class="status-box" id="youtube-status">
           Ready to ingest 4K spatial keyframes from YouTube.
+        </div>
+
+        <div class="control-group" style="margin-top: 10px;">
+          <label class="control-label">Incremental Splat Fusion Statistics</label>
+          <div class="status-box" id="ingestion-stats-box">
+            <div>Fused Model Points: <strong id="stat-splat-count">45,000</strong></div>
+            <div>Active Ingested Sources: <strong id="stat-sources-count">1</strong></div>
+            <div>Registered Camera Pose: <strong id="stat-pose">Drone Aerial</strong></div>
+            <div>Current Temporal Season: <strong id="stat-season">Summer</strong></div>
+          </div>
         </div>
       </div>
     </div>

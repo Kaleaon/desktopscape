@@ -158,7 +158,12 @@ export class GaussianSplatRenderer {
     }
 
     this.splatData = splatData;
-    this.splatCount = splatData.positions.length / 3;
+    const positions = splatData.positions instanceof Float32Array ? splatData.positions : new Float32Array(splatData.positions);
+    const scales = splatData.scales instanceof Float32Array ? splatData.scales : new Float32Array(splatData.scales);
+    const colors = splatData.colors instanceof Float32Array ? splatData.colors : new Float32Array(splatData.colors);
+    const rotations = splatData.rotations instanceof Float32Array ? splatData.rotations : new Float32Array(splatData.rotations);
+
+    this.splatCount = positions.length / 3;
 
     const geometry = new THREE.InstancedBufferGeometry();
     
@@ -175,10 +180,10 @@ export class GaussianSplatRenderer {
     geometry.setIndex(new THREE.BufferAttribute(quadIndices, 1));
 
     // Instanced attributes for Gaussian splats
-    geometry.setAttribute('splatPosition', new THREE.InstancedBufferAttribute(splatData.positions, 3));
-    geometry.setAttribute('splatScale', new THREE.InstancedBufferAttribute(splatData.scales, 3));
-    geometry.setAttribute('splatColor', new THREE.InstancedBufferAttribute(splatData.colors, 4));
-    geometry.setAttribute('splatRotation', new THREE.InstancedBufferAttribute(splatData.rotations, 4));
+    geometry.setAttribute('splatPosition', new THREE.InstancedBufferAttribute(positions, 3));
+    geometry.setAttribute('splatScale', new THREE.InstancedBufferAttribute(scales, 3));
+    geometry.setAttribute('splatColor', new THREE.InstancedBufferAttribute(colors, 4));
+    geometry.setAttribute('splatRotation', new THREE.InstancedBufferAttribute(rotations, 4));
 
     // Custom 3D Gaussian Splat Shader Material with solar & night lighting support
     this.splatUniforms = {
