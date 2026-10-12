@@ -121,7 +121,9 @@ export class UIController {
       });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
       window.electronAPI.onSetWeather((params) => {
-        if (params.preset) {
+        if (typeof params === 'string') {
+          this.setWeather(params);
+        } else if (params && params.preset) {
           this.setWeather(params.preset);
         } else {
           this.app.envEngine.setWeather(params);
@@ -131,7 +133,7 @@ export class UIController {
         const badge = document.getElementById('mode-badge');
         if (badge) {
           badge.textContent = isDesktop ? 'DESKTOP WALLPAPER' : 'WINDOW';
-          badge.classList.toggle('badge-desktop', isDesktop);
+          badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
         }
       });
     }
@@ -147,7 +149,6 @@ export class UIController {
     if (camVal) {
       camVal.textContent = mode === 'tour' ? 'River Tour' : 'Orbit View';
     }
-  }
   }
 
   switchScene(sceneName) {
