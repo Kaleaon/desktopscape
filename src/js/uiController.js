@@ -109,6 +109,20 @@ export class UIController {
       window.electronAPI.onSwitchScene((scene) => this.switchScene(scene));
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
       window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      window.electronAPI.onSetTimeMode((mode) => {
+        if (mode === 'auto') {
+          this.app.envEngine.autoSyncClock = true;
+          const autoBtn = document.getElementById('btn-toggle-autosync');
+          if (autoBtn) autoBtn.classList.add('active');
+        }
+      });
+      window.electronAPI.onDesktopModeChanged((isDesktop) => {
+        const badge = document.getElementById('mode-badge');
+        if (badge) {
+          badge.textContent = isDesktop ? 'WALLPAPER' : 'WINDOW';
+          badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
+        }
+      });
     }
   }
 

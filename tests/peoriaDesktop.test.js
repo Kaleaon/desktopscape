@@ -42,6 +42,15 @@ describe('YouTube 4K Peoria Video Pipeline', () => {
     assert.ok(result.splatData.positions.length > 0, 'Must extract splat positions');
     assert.strictEqual(result.splatData.colors.length, result.splatData.positions.length / 3 * 4);
   });
+
+  test('processYouTubePeoriaVideo throws error for invalid URL input', async () => {
+    await assert.rejects(
+      async () => {
+        await processYouTubePeoriaVideo(null);
+      },
+      { message: 'Invalid YouTube video URL.' }
+    );
+  });
 });
 
 describe('Winter River Ice & Environmental Calculations', () => {
