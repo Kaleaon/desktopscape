@@ -12,6 +12,9 @@ class PeoriaDesktopscapeApp {
   constructor() {
     this.container = document.getElementById('canvas-container');
 
+    this.cameraMode = 'orbit'; // 'orbit' or 'tour'
+    this.customSplatData = null;
+
     // 1. Core 3D Gaussian Splat Engine
     this.splatRenderer = new GaussianSplatRenderer(this.container);
 
@@ -32,6 +35,14 @@ class PeoriaDesktopscapeApp {
     this.animate();
   }
 
+  setCameraMode(mode) {
+    this.cameraMode = mode;
+  }
+
+  setCustomSplatData(data) {
+    this.customSplatData = data;
+  }
+
   loadScene(sceneKey) {
     let sceneData;
     switch (sceneKey) {
@@ -40,6 +51,13 @@ class PeoriaDesktopscapeApp {
         break;
       case 'grandview':
         sceneData = generateGrandviewDriveScene();
+        break;
+      case 'custom':
+        if (this.customSplatData) {
+          sceneData = this.customSplatData;
+        } else {
+          sceneData = generatePeoriaRiverfrontScene();
+        }
         break;
       case 'riverfront':
       default:
@@ -58,12 +76,22 @@ class PeoriaDesktopscapeApp {
     const delta = (now - this.lastTime) / 1000.0;
     this.lastTime = now;
 
-    // Slowly rotate camera around Peoria scene in Orbit mode
-    const camRadius = 140;
-    const camAngle = now * 0.0001;
-    this.splatRenderer.camera.position.x = Math.sin(camAngle) * camRadius;
-    this.splatRenderer.camera.position.z = Math.cos(camAngle) * camRadius;
-    this.splatRenderer.camera.lookAt(0, 10, 0);
+    if (this.cameraMode === 'tour') {
+      // Smooth camera path along Illinois River riverfront
+      const t = (now * 0.0002) % (Math.PI * 2);
+      this.splatRenderer.camera.position.x = Math.sin(t) * 110;
+      this.splatRenderer.camera.position.y = 20 + Math.sin(t * 2) * 5;
+      this.splatRenderer.camera.position.z = Math.cos(t) * 80 + 30;
+      this.splatRenderer.camera.lookAt(Math.sin(t + 0.3) * 60, 10, Math.cos(t + 0.3) * 30);
+    } else {
+      // Slowly rotate camera around Peoria scene in Orbit mode
+      const camRadius = 140;
+      const camAngle = now * 0.0001;
+      this.splatRenderer.camera.position.x = Math.sin(camAngle) * camRadius;
+      this.splatRenderer.camera.position.y = 45;
+      this.splatRenderer.camera.position.z = Math.cos(camAngle) * camRadius;
+      this.splatRenderer.camera.lookAt(0, 10, 0);
+    }
 
     // Update Environmental Particles & Weather
     this.envEngine.update(delta);

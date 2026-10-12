@@ -48,6 +48,11 @@ export class UIController {
     document.getElementById('btn-scene-riverfront').addEventListener('click', () => this.switchScene('riverfront'));
     document.getElementById('btn-scene-skyline').addEventListener('click', () => this.switchScene('skyline'));
     document.getElementById('btn-scene-grandview').addEventListener('click', () => this.switchScene('grandview'));
+    document.getElementById('btn-scene-custom').addEventListener('click', () => this.switchScene('custom'));
+
+    // Camera Perspective Buttons
+    document.getElementById('btn-cam-orbit').addEventListener('click', () => this.setCameraMode('orbit'));
+    document.getElementById('btn-cam-tour').addEventListener('click', () => this.setCameraMode('tour'));
 
     // Time Sliders & Presets
     this.sliderTime.addEventListener('input', (e) => {
@@ -107,6 +112,13 @@ export class UIController {
     // Electron IPC Listeners
     if (window.electronAPI) {
       window.electronAPI.onSwitchScene((scene) => this.switchScene(scene));
+      window.electronAPI.onSetTimeMode((mode) => {
+        if (mode === 'auto') {
+          this.app.envEngine.autoSyncClock = true;
+          const syncBtn = document.getElementById('btn-toggle-autosync');
+          if (syncBtn) syncBtn.classList.add('active');
+        }
+      });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
       window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
       window.electronAPI.onSetTimeMode((mode) => {
@@ -124,6 +136,7 @@ export class UIController {
         }
       });
     }
+  }
   }
 
   switchScene(sceneName) {
@@ -182,6 +195,7 @@ export class UIController {
       });
 
       this.ytStatus.textContent = `Successfully extracted 3D Gaussian Splat from video! (${result.title})`;
+      this.app.setCustomSplatData(result.splatData);
       this.app.splatRenderer.loadSplatData(result.splatData);
       
       const customBtn = document.getElementById('btn-scene-custom');

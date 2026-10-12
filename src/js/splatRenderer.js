@@ -256,6 +256,71 @@ export class GaussianSplatRenderer {
 
     this.splatMesh = new THREE.InstancedMesh(geometry, splatMaterial, this.splatCount);
     this.scene.add(this.splatMesh);
+
+    this.sortSplats();
+  }
+
+  sortSplats() {
+    if (!this.splatData || !this.splatMesh) return;
+
+    const count = this.splatCount;
+    const pos = this.splatData.positions;
+    const camX = this.camera.position.x;
+    const camY = this.camera.position.y;
+    const camZ = this.camera.position.z;
+
+    const distances = new Float32Array(count);
+    const indices = new Int32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      indices[i] = i;
+      const dx = pos[i * 3] - camX;
+      const dy = pos[i * 3 + 1] - camY;
+      const dz = pos[i * 3 + 2] - camZ;
+      distances[i] = dx * dx + dy * dy + dz * dz;
+    }
+
+    indices.sort((a, b) => distances[b] - distances[a]);
+    this.sortedIndices = indices;
+
+    const sortedPos = new Float32Array(count * 3);
+    const sortedScales = new Float32Array(count * 3);
+    const sortedColors = new Float32Array(count * 4);
+    const sortedRotations = new Float32Array(count * 4);
+
+    for (let i = 0; i < count; i++) {
+      const origIdx = indices[i];
+      sortedPos[i * 3] = pos[origIdx * 3];
+      sortedPos[i * 3 + 1] = pos[origIdx * 3 + 1];
+      sortedPos[i * 3 + 2] = pos[origIdx * 3 + 2];
+
+      sortedScales[i * 3] = this.splatData.scales[origIdx * 3];
+      sortedScales[i * 3 + 1] = this.splatData.scales[origIdx * 3 + 1];
+      sortedScales[i * 3 + 2] = this.splatData.scales[origIdx * 3 + 2];
+
+      sortedColors[i * 4] = this.splatData.colors[origIdx * 4];
+      sortedColors[i * 4 + 1] = this.splatData.colors[origIdx * 4 + 1];
+      sortedColors[i * 4 + 2] = this.splatData.colors[origIdx * 4 + 2];
+      sortedColors[i * 4 + 3] = this.splatData.colors[origIdx * 4 + 3];
+
+      sortedRotations[i * 4] = this.splatData.rotations[origIdx * 4];
+      sortedRotations[i * 4 + 1] = this.splatData.rotations[origIdx * 4 + 1];
+      sortedRotations[i * 4 + 2] = this.splatData.rotations[origIdx * 4 + 2];
+      sortedRotations[i * 4 + 3] = this.splatData.rotations[origIdx * 4 + 3];
+    }
+
+    const geo = this.splatMesh.geometry;
+    geo.attributes.splatPosition.array.set(sortedPos);
+    geo.attributes.splatPosition.needsUpdate = true;
+
+    geo.attributes.splatScale.array.set(sortedScales);
+    geo.attributes.splatScale.needsUpdate = true;
+
+    geo.attributes.splatColor.array.set(sortedColors);
+    geo.attributes.splatColor.needsUpdate = true;
+
+    geo.attributes.splatRotation.array.set(sortedRotations);
+    geo.attributes.splatRotation.needsUpdate = true;
   }
 
   updateLighting(timeOfDayHours, weatherState) {
