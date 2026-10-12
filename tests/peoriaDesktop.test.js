@@ -42,6 +42,18 @@ describe('YouTube 4K Peoria Video Pipeline', () => {
     assert.ok(result.splatData.positions.length > 0, 'Must extract splat positions');
     assert.strictEqual(result.splatData.colors.length, result.splatData.positions.length / 3 * 4);
   });
+
+  test('YouTube 4K extracted splat dataset structure is valid for renderer', async () => {
+    const sampleUrl = 'https://www.youtube.com/watch?v=murray_baker_bridge_4k';
+    const result = await processYouTubePeoriaVideo(sampleUrl);
+    const { splatData } = result;
+
+    assert.ok(Array.isArray(splatData.positions), 'Positions must be an array');
+    assert.ok(Array.isArray(splatData.scales), 'Scales must be an array');
+    assert.ok(Array.isArray(splatData.colors), 'Colors must be an array');
+    assert.ok(Array.isArray(splatData.rotations), 'Rotations must be an array');
+    assert.strictEqual(splatData.positions.length / 3, splatData.scales.length / 3);
+  });
 });
 
 describe('Winter River Ice & Environmental Calculations', () => {
