@@ -48,6 +48,11 @@ export class UIController {
     document.getElementById('btn-scene-riverfront').addEventListener('click', () => this.switchScene('riverfront'));
     document.getElementById('btn-scene-skyline').addEventListener('click', () => this.switchScene('skyline'));
     document.getElementById('btn-scene-grandview').addEventListener('click', () => this.switchScene('grandview'));
+    document.getElementById('btn-scene-custom').addEventListener('click', () => this.switchScene('custom'));
+
+    // Camera Perspective Buttons
+    document.getElementById('btn-cam-orbit').addEventListener('click', () => this.setCameraMode('orbit'));
+    document.getElementById('btn-cam-tour').addEventListener('click', () => this.setCameraMode('tour'));
 
     // Time Sliders & Presets
     this.sliderTime.addEventListener('input', (e) => {
@@ -107,9 +112,42 @@ export class UIController {
     // Electron IPC Listeners
     if (window.electronAPI) {
       window.electronAPI.onSwitchScene((scene) => this.switchScene(scene));
+      window.electronAPI.onSetTimeMode((mode) => {
+        if (mode === 'auto') {
+          this.app.envEngine.autoSyncClock = true;
+          const syncBtn = document.getElementById('btn-toggle-autosync');
+          if (syncBtn) syncBtn.classList.add('active');
+        }
+      });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
-      window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      window.electronAPI.onSetWeather((params) => {
+        if (params.preset) {
+          this.setWeather(params.preset);
+        } else {
+          this.app.envEngine.setWeather(params);
+        }
+      });
+      window.electronAPI.onDesktopModeChanged((isDesktop) => {
+        const badge = document.getElementById('mode-badge');
+        if (badge) {
+          badge.textContent = isDesktop ? 'DESKTOP WALLPAPER' : 'WINDOW';
+          badge.classList.toggle('badge-desktop', isDesktop);
+        }
+      });
     }
+  }
+
+  setCameraMode(mode) {
+    document.querySelectorAll('#btn-cam-orbit, #btn-cam-tour').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`btn-cam-${mode}`);
+    if (btn) btn.classList.add('active');
+
+    this.app.setCameraMode(mode);
+    const camVal = document.getElementById('camera-val');
+    if (camVal) {
+      camVal.textContent = mode === 'tour' ? 'River Tour' : 'Orbit View';
+    }
+  }
   }
 
   switchScene(sceneName) {
@@ -168,6 +206,7 @@ export class UIController {
       });
 
       this.ytStatus.textContent = `Successfully extracted 3D Gaussian Splat from video! (${result.title})`;
+      this.app.setCustomSplatData(result.splatData);
       this.app.splatRenderer.loadSplatData(result.splatData);
       
       const customBtn = document.getElementById('btn-scene-custom');
