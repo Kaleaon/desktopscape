@@ -98,20 +98,89 @@ class ImageStitcher {
   }
 
   /**
-   * Matches keypoint features between two consecutive frames.
+   * Builds a 2D spatial grid index from keypoints.
+   * Keypoints are placed into grid cells based on x, y pixel coordinates and cell size.
+   */
+  static buildSpatialGrid(keypoints, cellSize = 30) {
+    const grid = new Map();
+
+    for (let i = 0; i < keypoints.length; i++) {
+      const kp = keypoints[i];
+      const cellX = Math.floor(kp.x / cellSize);
+      const cellY = Math.floor(kp.y / cellSize);
+      const cellKey = `${cellX},${cellY}`;
+
+      let cell = grid.get(cellKey);
+      if (!cell) {
+        cell = [];
+        grid.set(cellKey, cell);
+      }
+      cell.push(kp);
+    }
+
+    return { grid, cellSize };
+  }
+
+  /**
+   * Queries candidate keypoints from adjacent grid cells (3x3 neighborhood around target coordinate).
+   */
+  static queryAdjacentGridCells(spatialGridInfo, x, y) {
+    const { grid, cellSize } = spatialGridInfo;
+    const centerCellX = Math.floor(x / cellSize);
+    const centerCellY = Math.floor(y / cellSize);
+    const candidates = [];
+
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        const cellKey = `${centerCellX + ox},${centerCellY + oy}`;
+        const cell = grid.get(cellKey);
+        if (cell) {
+          for (let i = 0; i < cell.length; i++) {
+            candidates.push(cell[i]);
+          }
+        }
+      }
+    }
+
+    return candidates;
+  }
+
+  /**
+   * Creates a Map lookup for pairwise keypoint matches keyed by keypoint reference.
+   */
+  static createMatchLookupMap(matches) {
+    const matchMap = new Map();
+    if (matches && Array.isArray(matches)) {
+      for (let i = 0; i < matches.length; i++) {
+        const m = matches[i];
+        matchMap.set(m.kpA, m);
+      }
+    }
+    return matchMap;
+  }
+
+  /**
+   * Matches keypoint features between two consecutive frames using 2D spatial grid indexing.
    */
   static matchKeypoints(keypointsA, keypointsB, maxSearchRadius = 30) {
     const matches = [];
+    const spatialGridInfo = ImageStitcher.buildSpatialGrid(keypointsB, maxSearchRadius);
 
     for (let i = 0; i < keypointsA.length; i++) {
       const kpA = keypointsA[i];
       let bestMatch = null;
       let minDistance = Infinity;
 
-      for (let j = 0; j < keypointsB.length; j++) {
-        const kpB = keypointsB[j];
+      const candidates = ImageStitcher.queryAdjacentGridCells(spatialGridInfo, kpA.x, kpA.y);
+
+      for (let j = 0; j < candidates.length; j++) {
+        const kpB = candidates[j];
         const dx = kpB.x - kpA.x;
         const dy = kpB.y - kpA.y;
+
+        // Bounding box pre-filtering: eliminate candidate before spatial distance calculation
+        if (Math.abs(dx) > maxSearchRadius || Math.abs(dy) > maxSearchRadius) continue;
+
         const spatialDist = Math.sqrt(dx * dx + dy * dy);
 
         if (spatialDist > maxSearchRadius) continue;
@@ -160,13 +229,16 @@ class ImageStitcher {
     // 2. Extract features for all keyframes
     const keyframesFeatures = images.map(img => ImageStitcher.extractFeatures(img, options));
 
-    // 3. Match keypoints across consecutive frame pairs
+    // 3. Match keypoints across consecutive frame pairs and build match lookup maps
     let totalMatchesCount = 0;
     const pairwiseMatches = [];
+    const pairwiseMatchMaps = [];
 
     for (let f = 0; f < keyframesFeatures.length - 1; f++) {
       const matches = ImageStitcher.matchKeypoints(keyframesFeatures[f], keyframesFeatures[f + 1]);
+      const matchMap = ImageStitcher.createMatchLookupMap(matches);
       pairwiseMatches.push(matches);
+      pairwiseMatchMaps.push(matchMap);
       totalMatchesCount += matches.length;
     }
 
@@ -186,10 +258,11 @@ class ImageStitcher {
         const normX = (kp.x / img.width - 0.5) * 200;
         const normY = (0.5 - kp.y / img.height) * 100;
 
-        // Disparity estimation from feature matching
+        // Disparity estimation from feature matching using O(1) Map lookup
         let disparity = 1.0;
-        if (f < pairwiseMatches.length) {
-          const match = pairwiseMatches[f].find(m => m.kpA === kp);
+        if (f < pairwiseMatchMaps.length) {
+          const matchMap = pairwiseMatchMaps[f];
+          const match = matchMap.get(kp);
           if (match) disparity = Math.max(0.2, Math.abs(match.dx) + Math.abs(match.dy));
         }
 

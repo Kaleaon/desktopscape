@@ -106,8 +106,8 @@ export class IncrementalSplatModel {
     const alignedData = alignmentResult.splatData;
 
     // 2. Perform temporal delta analysis & seasonal color adaptation
-    const temporalDelta = analyzeTemporalDelta(alignedData, { positions: new Float32Array(this.positionsList) });
-    const temporalResult = applyTemporalDeltaToSplats(alignedData, temporalDelta);
+    const temporalDelta = analyzeTemporalDelta(alignedData, { positions: this.positionsList });
+    const temporalResult = applyTemporalDeltaToSplats(alignedData, temporalDelta, { inplace: true });
     const incomingData = temporalResult.splatData;
 
     const count = incomingData.positions.length / 3;
