@@ -187,3 +187,133 @@ describe('Executable Package Configuration', () => {
     assert.deepStrictEqual(pkg.build.win.target, ['nsis', 'portable']);
   });
 });
+
+describe('Progressive Disclosure & Contextual UI Extraction', () => {
+  test('Primary views contain contextual drawer triggers and drawers hold all 12 secondary toggles', () => {
+    const html = fs.readFileSync(path.join(__dirname, '../src/index.html'), 'utf8');
+
+    // Contextual Drawer Triggers present on primary views
+    assert.ok(html.includes('id="btn-drawer-time"'), 'Time panel must feature contextual drawer trigger button');
+    assert.ok(html.includes('id="btn-drawer-weather"'), 'Weather panel must feature contextual drawer trigger button');
+    assert.ok(html.includes('id="btn-drawer-youtube"'), 'Pipeline panel must feature contextual drawer trigger button');
+
+    // Active visual indicator elements
+    assert.ok(html.includes('id="dot-time"'), 'Time drawer trigger must contain active indicator dot element');
+    assert.ok(html.includes('id="dot-weather"'), 'Weather drawer trigger must contain active indicator dot element');
+    assert.ok(html.includes('id="dot-youtube"'), 'YouTube drawer trigger must contain active indicator dot element');
+
+    // Contextual Drawer Panels
+    assert.ok(html.includes('id="drawer-time"'), 'Time contextual drawer panel must exist');
+    assert.ok(html.includes('id="drawer-weather"'), 'Weather contextual drawer panel must exist');
+    assert.ok(html.includes('id="drawer-youtube"'), 'YouTube contextual drawer panel must exist');
+
+    // All 12 secondary configuration toggles verified inside drawer panels
+    const secondaryToggles = [
+      'btn-time-dawn', 'btn-time-noon', 'btn-time-sunset', 'btn-time-night',
+      'btn-pose-drone', 'btn-pose-ground', 'btn-pose-bluff', 'btn-pose-oblique',
+      'btn-season-summer', 'btn-season-autumn', 'btn-season-winter', 'btn-season-spring'
+    ];
+
+    secondaryToggles.forEach(toggleId => {
+      assert.ok(html.includes(`id="${toggleId}"`), `Secondary configuration toggle ${toggleId} must exist in HTML drawers`);
+    });
+  });
+
+  test('UIController toggles drawers, persists settings in localStorage, and updates active indicators', () => {
+    // Mock minimal DOM environment for UIController
+    const storageMock = {};
+    global.window = {
+      localStorage: {
+        getItem: (key) => storageMock[key] || null,
+        setItem: (key, val) => { storageMock[key] = String(val); },
+        clear: () => { Object.keys(storageMock).forEach(k => delete storageMock[k]); }
+      }
+    };
+
+    // Construct mock elements needed for UIController
+    const createdElements = {};
+    const createElementMock = (id, initialClasses = []) => {
+      const classSet = new Set(initialClasses);
+      const el = {
+        id,
+        classList: {
+          add: (c) => classSet.add(c),
+          remove: (c) => classSet.delete(c),
+          contains: (c) => classSet.has(c),
+          toggle: (c, force) => {
+            if (force === true) classSet.add(c);
+            else if (force === false) classSet.delete(c);
+            else {
+              if (classSet.has(c)) classSet.delete(c); else classSet.add(c);
+            }
+          }
+        },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        setAttribute: () => {},
+        getAttribute: () => null,
+        textContent: '',
+        value: '72',
+        disabled: false
+      };
+      return el;
+    };
+
+    global.document = {
+      getElementById: (id) => {
+        if (!createdElements[id]) {
+          createdElements[id] = createElementMock(id);
+        }
+        return createdElements[id];
+      },
+      querySelector: (sel) => {
+        // e.g. [data-pose="..."]
+        const match = sel.match(/\[data-([a-z]+)="([^"]+)"\]/);
+        if (match) {
+          const id = `btn-${match[1]}-${match[2].split('-')[0]}`;
+          if (!createdElements[id]) {
+            createdElements[id] = createElementMock(id);
+          }
+          return createdElements[id];
+        }
+        return createElementMock('mock-el');
+      },
+      querySelectorAll: (sel) => []
+    };
+
+    const { UIController } = require('../src/js/uiController');
+
+    const mockApp = {
+      envEngine: {
+        weather: { temperature: 72, winterIce: 0, preset: 'clear' },
+        timeOfDay: 12,
+        autoSyncClock: false,
+        setTimeOfDay: function(t) { this.timeOfDay = t; },
+        setWeather: function(w) { if (w.temp !== undefined) this.weather.temperature = w.temp; if (w.ice !== undefined) this.weather.winterIce = w.ice; }
+      },
+      loadScene: () => {},
+      ytPipeline: { processUrl: async () => ({ splatData: {}, title: 'Test' }) }
+    };
+
+    const controller = new UIController(mockApp);
+
+    // Test Drawer open/close
+    const drawerTime = global.document.getElementById('drawer-time');
+    controller.toggleDrawer('drawer-time');
+    assert.ok(drawerTime.classList.contains('open'), 'toggleDrawer must add open class to contextual drawer');
+    controller.closeDrawer('drawer-time');
+    assert.ok(!drawerTime.classList.contains('open'), 'closeDrawer must remove open class from contextual drawer');
+
+    // Test persistence and active indicator updates on setting change
+    controller.settings.temperature = 10;
+    controller.saveSecondarySettings();
+    assert.ok(storageMock['peoria_secondary_settings'].includes('"temperature":10'), 'Secondary settings must persist to localStorage');
+
+    controller.updateVisualIndicators();
+    const dotWeather = global.document.getElementById('dot-weather');
+    const btnDrawerWeather = global.document.getElementById('btn-drawer-weather');
+    assert.ok(dotWeather.classList.contains('active'), 'Active dot indicator must activate when non-default secondary temperature setting is set');
+    assert.ok(btnDrawerWeather.classList.contains('has-active-settings'), 'Drawer button must highlight when non-default secondary settings are active');
+  });
+});
+

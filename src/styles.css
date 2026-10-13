@@ -251,3 +251,115 @@ input[type="text"]:focus {
   color: var(--text-muted);
   border: 1px dashed var(--border-glass);
 }
+
+/* Contextual Drawer Trigger Buttons */
+.drawer-trigger-btn {
+  width: 100%;
+  background: rgba(22, 30, 46, 0.85);
+  border: 1px solid var(--border-glass);
+  color: var(--text-main);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.drawer-trigger-btn:hover {
+  background: rgba(56, 239, 125, 0.15);
+  border-color: #38ef7d;
+}
+
+.drawer-trigger-btn.has-active-settings {
+  border-color: #f2994a;
+  background: rgba(242, 153, 74, 0.12);
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.indicator-dot.active {
+  background: #f2994a;
+  box-shadow: 0 0 8px #f2994a;
+}
+
+/* Contextual Drawer Overlay & Panels */
+.contextual-drawers-overlay {
+  position: relative;
+  width: 100%;
+}
+
+.contextual-drawer {
+  display: none;
+  background: rgba(16, 23, 38, 0.95);
+  border-top: 1px solid var(--border-glass);
+  padding: 14px 18px;
+  border-radius: 0 0 16px 16px;
+  margin-top: 8px;
+  animation: slideDown 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.contextual-drawer.open {
+  display: block;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.drawer-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.3px;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.drawer-close-btn:hover {
+  color: #fff;
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
