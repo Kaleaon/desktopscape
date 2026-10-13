@@ -88,6 +88,48 @@ describe('Temporal Change & Time-of-Day/Season Delta Understanding', () => {
 
     assert.ok(transformed.splatData.colors.length === baseScene.colors.length);
     assert.strictEqual(transformed.temporalDelta.season, 'winter');
+    assert.notStrictEqual(transformed.splatData.colors, baseScene.colors, 'Default non-inplace must allocate a new buffer');
+  });
+
+  test('applyTemporalDeltaToSplats supports in-place transformation and targetColors buffer', () => {
+    const baseScene = generatePeoriaRiverfrontScene();
+    const winterDelta = analyzeTemporalDelta({ presetSeason: 'winter' }, baseScene);
+
+    // Baseline copy for numerical validation
+    const sceneCopyForDefault = {
+      positions: new Float32Array(baseScene.positions),
+      scales: new Float32Array(baseScene.scales),
+      colors: new Float32Array(baseScene.colors),
+      rotations: new Float32Array(baseScene.rotations)
+    };
+
+    const sceneCopyForInplace = {
+      positions: new Float32Array(baseScene.positions),
+      scales: new Float32Array(baseScene.scales),
+      colors: new Float32Array(baseScene.colors),
+      rotations: new Float32Array(baseScene.rotations)
+    };
+
+    const targetColors = new Float32Array(baseScene.colors.length);
+
+    // Standard non-inplace transformation
+    const defaultRes = applyTemporalDeltaToSplats(sceneCopyForDefault, winterDelta);
+
+    // Inplace transformation
+    const inplaceRes = applyTemporalDeltaToSplats(sceneCopyForInplace, winterDelta, { inplace: true });
+
+    // Target colors transformation
+    const targetRes = applyTemporalDeltaToSplats(baseScene, winterDelta, { targetColors });
+
+    // 1. Verify buffer references
+    assert.strictEqual(inplaceRes.splatData.colors, sceneCopyForInplace.colors, 'In-place must modify and return input colors array directly');
+    assert.strictEqual(targetRes.splatData.colors, targetColors, 'Target colors must write directly to specified targetColors buffer');
+
+    // 2. Verify identical numerical results
+    for (let i = 0; i < defaultRes.splatData.colors.length; i++) {
+      assert.strictEqual(inplaceRes.splatData.colors[i], defaultRes.splatData.colors[i], `Inplace color value at index ${i} must match default transformation`);
+      assert.strictEqual(targetRes.splatData.colors[i], defaultRes.splatData.colors[i], `Target color value at index ${i} must match default transformation`);
+    }
   });
 });
 

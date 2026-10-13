@@ -110,14 +110,39 @@ export function analyzeTemporalDelta(inputData = {}, baseSceneData = {}) {
 /**
  * Applies temporal delta updates to splat dataset colors and attributes.
  */
-export function applyTemporalDeltaToSplats(splatData, temporalDelta) {
+export function applyTemporalDeltaToSplats(splatData, temporalDelta, options = {}) {
   if (!splatData || !splatData.colors) {
     return splatData;
   }
 
-  const delta = temporalDelta instanceof TemporalDelta ? temporalDelta : analyzeTemporalDelta(splatData);
+  let opts = options;
+  let delta;
+
+  if (temporalDelta instanceof TemporalDelta) {
+    delta = temporalDelta;
+  } else if (temporalDelta && typeof temporalDelta === 'object') {
+    if ('inplace' in temporalDelta || 'targetColors' in temporalDelta) {
+      opts = temporalDelta;
+      delta = analyzeTemporalDelta(splatData);
+    } else {
+      delta = analyzeTemporalDelta(temporalDelta, splatData);
+    }
+  } else {
+    delta = analyzeTemporalDelta(splatData);
+  }
+
   const count = splatData.colors.length / 4;
-  const updatedColors = new Float32Array(splatData.colors.length);
+  let updatedColors;
+
+  const isFrozen = Object.isFrozen(splatData.colors);
+
+  if (opts.inplace && !isFrozen) {
+    updatedColors = splatData.colors;
+  } else if (opts.targetColors && opts.targetColors.length >= splatData.colors.length && !Object.isFrozen(opts.targetColors)) {
+    updatedColors = opts.targetColors;
+  } else {
+    updatedColors = new Float32Array(splatData.colors.length);
+  }
 
   for (let i = 0; i < count; i++) {
     let r = splatData.colors[i * 4];
