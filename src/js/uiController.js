@@ -4,6 +4,8 @@
  * temporal delta selectors, and incremental ingestion interactions.
  */
 
+import { translateError } from './errorTranslationMiddleware.js';
+
 export class UIController {
   constructor(app) {
     this.app = app;
@@ -268,6 +270,81 @@ export class UIController {
     if (this.statSeason) this.statSeason.textContent = stats.lastIngestion ? stats.lastIngestion.season : this.selectedSeason;
   }
 
+  showToast(title, message, recoveryAction = null, type = 'error') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+      <div class="toast-header">
+        <span class="toast-title">${title}</span>
+        <button class="toast-close">&times;</button>
+      </div>
+      <div class="toast-message">${message}</div>
+      ${recoveryAction ? `<div class="toast-recovery"><span>${recoveryAction}</span></div>` : ''}
+    `;
+
+    const closeBtn = toast.querySelector('.toast-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      });
+    }
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 6000);
+  }
+
+  showAlertModal(title, message, recoveryAction = null) {
+    const overlay = document.getElementById('alert-modal-overlay');
+    const titleEl = document.getElementById('alert-modal-title');
+    const bodyEl = document.getElementById('alert-modal-body');
+    const recoveryEl = document.getElementById('alert-modal-recovery');
+    const closeBtn = document.getElementById('alert-modal-close-btn');
+
+    if (!overlay) return;
+
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.textContent = message;
+    if (recoveryEl) {
+      if (recoveryAction) {
+        recoveryEl.textContent = `Suggested Recovery: ${recoveryAction}`;
+        recoveryEl.style.display = 'block';
+      } else {
+        recoveryEl.style.display = 'none';
+      }
+    }
+
+    overlay.classList.add('active');
+
+    if (closeBtn) {
+      const handleClose = () => {
+        overlay.classList.remove('active');
+        closeBtn.removeEventListener('click', handleClose);
+      };
+      closeBtn.addEventListener('click', handleClose);
+    }
+  }
+
+  handleError(err) {
+    const translated = translateError(err);
+    this.showToast(translated.title, translated.message, translated.recoveryAction, 'error');
+    if (this.ytStatus) {
+      this.ytStatus.textContent = `${translated.title}: ${translated.message}`;
+    }
+    return translated;
+  }
+
   async processYouTubeUrl(url) {
     if (this.ytStatus) this.ytStatus.textContent = 'Extracting spatial keyframe images and performing 3D feature stitching...';
     try {
@@ -295,6 +372,8 @@ export class UIController {
         this.ytStatus.textContent = `Successfully extracted & stitched 3D Gaussian Splats from keyframe images! (${result.title})`;
       }
 
+      this.showToast('3D Processing Complete', `Successfully extracted splats from ${result.title}`, 'Model updated with new spatial points.', 'success');
+
       const customBtn = document.getElementById('btn-scene-custom');
       if (customBtn) {
         customBtn.disabled = false;
@@ -303,7 +382,7 @@ export class UIController {
         customBtn.classList.add('active');
       }
     } catch (err) {
-      if (this.ytStatus) this.ytStatus.textContent = `Error processing video keyframes: ${err.message}`;
+      this.handleError(err);
     }
   }
 }

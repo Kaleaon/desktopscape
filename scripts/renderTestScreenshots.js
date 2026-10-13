@@ -179,7 +179,33 @@ async function renderAllScreenshots() {
     return { r, g, b };
   });
 
-  console.log('✓ All 4 Peoria Gaussian Splat screenshots rendered successfully!');
+  // 5. Peoria Error Translation Toast & Actionable Plain-Language Copy Preview
+  saveImage('peoria_error_translation_toast.png', W, H, (x, y, w, h) => {
+    let r = 12; let g = 17; let b = 28;
+
+    // Toast Container at Bottom Right (x: 420-760, y: 340-460)
+    if (x >= 420 && x <= 760 && y >= 340 && y <= 460) {
+      r = 22; g = 30; b = 46;
+
+      // Toast Left Error Border Accent (#f87171)
+      if (x >= 420 && x <= 425) {
+        r = 248; g = 113; b = 113;
+      }
+
+      // Toast Recovery Action Box (y: 415-450, x: 435-745)
+      if (y >= 415 && y <= 450 && x >= 435 && x <= 745) {
+        r = 35; g = 50; b = 60;
+        // Primary recovery button accent (#38ef7d)
+        if (x >= 660 && x <= 735 && y >= 420 && y <= 445) {
+          r = 56; g = 239; b = 125;
+        }
+      }
+    }
+
+    return { r, g, b };
+  });
+
+  console.log('✓ All 5 Peoria Gaussian Splat screenshots rendered successfully!');
 }
 
 renderAllScreenshots();
