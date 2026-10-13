@@ -7,7 +7,10 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const util = require('util');
+
+const execAsync = util.promisify(exec);
 
 /**
  * Creates a 24-bit BMP image buffer.
@@ -57,9 +60,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
 
   const frameBufferDir = targetDir || path.join(os.tmpdir(), 'peoria_frame_buffer');
 
-  if (!fs.existsSync(frameBufferDir)) {
-    fs.mkdirSync(frameBufferDir, { recursive: true });
-  }
+  await fs.promises.mkdir(frameBufferDir, { recursive: true });
 
   // Extract YouTube Video ID
   const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
@@ -67,7 +68,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
 
   let hasFfmpeg = false;
   try {
-    execSync('ffmpeg -version', { stdio: 'ignore' });
+    await execAsync('ffmpeg -version');
     hasFfmpeg = true;
   } catch (e) {
     hasFfmpeg = false;
@@ -79,11 +80,9 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
     // Run ffmpeg keyframe extraction
     try {
       const outputPattern = path.join(frameBufferDir, 'frame_%04d.bmp');
-      execSync(`ffmpeg -y -i "${url}" -vf "select='eq(pict_type\\,I)',scale=${width}:${height}" -vsync vfr -vframes ${numFrames} "${outputPattern}"`, {
-        stdio: 'pipe'
-      });
+      await execAsync(`ffmpeg -y -i "${url}" -vf "select='eq(pict_type\\,I)',scale=${width}:${height}" -vsync vfr -vframes ${numFrames} "${outputPattern}"`);
 
-      const files = fs.readdirSync(frameBufferDir).filter(f => f.startsWith('frame_') && f.endsWith('.bmp'));
+      const files = (await fs.promises.readdir(frameBufferDir)).filter(f => f.startsWith('frame_') && f.endsWith('.bmp'));
       files.forEach(f => framePaths.push(path.join(frameBufferDir, f)));
     } catch (err) {
       // Fallback if ffmpeg network stream fails
@@ -134,7 +133,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
         return { r, g, b };
       });
 
-      fs.writeFileSync(framePath, bmpBuf);
+      await fs.promises.writeFile(framePath, bmpBuf);
       framePaths.push(framePath);
     }
   }
