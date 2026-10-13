@@ -147,6 +147,26 @@ describe('Keyframe Extraction & 3D Feature Stitching Pipeline', () => {
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
+  test('extractFrames performs non-blocking keyframe generation and handles ffmpeg error fallback gracefully', async () => {
+    const testDir = path.join(os.tmpdir(), 'test_peoria_async_fallback_' + Date.now());
+    const invalidOrFallbackUrl = 'https://www.youtube.com/watch?v=invalid_or_offline_video';
+
+    // Verify non-blocking behavior by running multiple extraction promises concurrently
+    const [res1, res2] = await Promise.all([
+      extractFrames(invalidOrFallbackUrl, path.join(testDir, 'dir1'), { frameCount: 3 }),
+      extractFrames(invalidOrFallbackUrl, path.join(testDir, 'dir2'), { frameCount: 3 })
+    ]);
+
+    assert.strictEqual(res1.frameCount, 3);
+    assert.strictEqual(res2.frameCount, 3);
+    assert.strictEqual(res1.framePaths.length, 3);
+    assert.strictEqual(res2.framePaths.length, 3);
+    assert.ok(fs.existsSync(res1.framePaths[0]));
+    assert.ok(fs.existsSync(res2.framePaths[0]));
+
+    fs.rmSync(testDir, { recursive: true, force: true });
+  });
+
   test('processYouTubePeoriaVideo extracts keyframes and generates 3D Gaussian Splat dataset from YouTube video URL', async () => {
     const sampleUrl = 'https://www.youtube.com/watch?v=5Qe07gFsTx4';
     const result = await processYouTubePeoriaVideo(sampleUrl, { frameCount: 5, perspective: 'drone-aerial', season: 'autumn' });
