@@ -75,17 +75,10 @@
         </div>
 
         <div class="control-group">
-          <label class="control-label">Lighting Quick Presets</label>
-          <div class="grid-buttons">
-            <button class="btn" id="btn-time-dawn">🌅 Dawn (6 AM)</button>
-            <button class="btn" id="btn-time-noon">☀️ Midday (12 PM)</button>
-            <button class="btn" id="btn-time-sunset">🌇 Sunset (6:30 PM)</button>
-            <button class="btn" id="btn-time-night">🌃 Night Lights (10 PM)</button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <button class="btn" id="btn-toggle-autosync">🔄 Auto Sync Local Clock</button>
+          <button class="drawer-trigger-btn" id="btn-drawer-time" data-drawer="drawer-time">
+            <span>⚙️ Solar Presets & Sync</span>
+            <span class="indicator-dot" id="dot-time"></span>
+          </button>
         </div>
       </div>
 
@@ -102,23 +95,10 @@
         </div>
 
         <div class="control-group">
-          <label class="control-label">
-            <span>Winter River Freeze (Illinois River)</span>
-            <span id="ice-val">0% Ice</span>
-          </label>
-          <div class="slider-container">
-            <input type="range" id="slider-ice" min="0" max="1" step="0.05" value="0">
-          </div>
-        </div>
-
-        <div class="control-group">
-          <label class="control-label">
-            <span>Temperature</span>
-            <span id="temp-val">72°F</span>
-          </label>
-          <div class="slider-container">
-            <input type="range" id="slider-temp" min="-20" max="100" step="1" value="72">
-          </div>
+          <button class="drawer-trigger-btn" id="btn-drawer-weather" data-drawer="drawer-weather">
+            <span>⚙️ River Ice & Temperature Settings</span>
+            <span class="indicator-dot" id="dot-weather"></span>
+          </button>
         </div>
       </div>
 
@@ -130,27 +110,7 @@
         </div>
 
         <div class="control-group">
-          <label class="control-label">1. View-Angle & Camera Registration</label>
-          <div class="grid-buttons">
-            <button class="btn active" id="btn-pose-drone" data-pose="drone-aerial">🚁 Drone Aerial (45°)</button>
-            <button class="btn" id="btn-pose-ground" data-pose="ground-eye">🚶 Ground Level</button>
-            <button class="btn" id="btn-pose-bluff" data-pose="bluff-overlook">🏞️ Bluff Overlook</button>
-            <button class="btn" id="btn-pose-oblique" data-pose="side-oblique">📐 Side Oblique</button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <label class="control-label">2. Temporal Change & Season Delta</label>
-          <div class="grid-buttons">
-            <button class="btn active" id="btn-season-summer" data-season="summer">🌿 Summer Green</button>
-            <button class="btn" id="btn-season-autumn" data-season="autumn">🍁 Autumn Gold</button>
-            <button class="btn" id="btn-season-winter" data-season="winter">🧊 Winter Ice</button>
-            <button class="btn" id="btn-season-spring" data-season="spring">🌸 Spring Bloom</button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <label class="control-label">3. Incremental Pipeline Action</label>
+          <label class="control-label">Incremental Pipeline Action</label>
           <div class="grid-buttons">
             <button class="btn active" id="btn-process-youtube">
               ⚡ Merge Keyframe Features
@@ -173,6 +133,13 @@
           Ready to ingest 4K spatial keyframes from YouTube.
         </div>
 
+        <div class="control-group">
+          <button class="drawer-trigger-btn" id="btn-drawer-youtube" data-drawer="drawer-youtube">
+            <span>⚙️ Registration & Seasonal Settings</span>
+            <span class="indicator-dot" id="dot-youtube"></span>
+          </button>
+        </div>
+
         <div class="control-group" style="margin-top: 10px;">
           <label class="control-label">Incremental Splat Fusion Statistics</label>
           <div class="status-box" id="ingestion-stats-box">
@@ -180,6 +147,87 @@
             <div>Active Ingested Sources: <strong id="stat-sources-count">1</strong></div>
             <div>Registered Camera Pose: <strong id="stat-pose">Drone Aerial</strong></div>
             <div>Current Temporal Season: <strong id="stat-season">Summer</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contextual Drawer Panels Container -->
+    <div class="contextual-drawers-overlay" id="drawers-overlay">
+      <!-- Time Contextual Drawer -->
+      <div class="contextual-drawer" id="drawer-time">
+        <div class="drawer-header">
+          <span class="drawer-title">Solar & Sync Configuration</span>
+          <button class="drawer-close-btn" data-close="drawer-time">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <div class="control-group">
+            <label class="control-label">Lighting Quick Presets</label>
+            <div class="grid-buttons">
+              <button class="btn" id="btn-time-dawn">🌅 Dawn (6 AM)</button>
+              <button class="btn" id="btn-time-noon">☀️ Midday (12 PM)</button>
+              <button class="btn" id="btn-time-sunset">🌇 Sunset (6:30 PM)</button>
+              <button class="btn" id="btn-time-night">🌃 Night Lights (10 PM)</button>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top: 12px;">
+            <button class="btn" id="btn-toggle-autosync">🔄 Auto Sync Local Clock</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weather Contextual Drawer -->
+      <div class="contextual-drawer" id="drawer-weather">
+        <div class="drawer-header">
+          <span class="drawer-title">Winter River Ice & Temp Configuration</span>
+          <button class="drawer-close-btn" data-close="drawer-weather">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <div class="control-group">
+            <label class="control-label">
+              <span>Winter River Freeze (Illinois River)</span>
+              <span id="ice-val">0% Ice</span>
+            </label>
+            <div class="slider-container">
+              <input type="range" id="slider-ice" min="0" max="1" step="0.05" value="0">
+            </div>
+          </div>
+          <div class="control-group" style="margin-top: 12px;">
+            <label class="control-label">
+              <span>Temperature</span>
+              <span id="temp-val">72°F</span>
+            </label>
+            <div class="slider-container">
+              <input type="range" id="slider-temp" min="-20" max="100" step="1" value="72">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- YouTube Pipeline Contextual Drawer -->
+      <div class="contextual-drawer" id="drawer-youtube">
+        <div class="drawer-header">
+          <span class="drawer-title">Pipeline Registration & Seasonal Configuration</span>
+          <button class="drawer-close-btn" data-close="drawer-youtube">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <div class="control-group">
+            <label class="control-label">1. View-Angle & Camera Registration</label>
+            <div class="grid-buttons">
+              <button class="btn active" id="btn-pose-drone" data-pose="drone-aerial">🚁 Drone Aerial (45°)</button>
+              <button class="btn" id="btn-pose-ground" data-pose="ground-eye">🚶 Ground Level</button>
+              <button class="btn" id="btn-pose-bluff" data-pose="bluff-overlook">🏞️ Bluff Overlook</button>
+              <button class="btn" id="btn-pose-oblique" data-pose="side-oblique">📐 Side Oblique</button>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top: 12px;">
+            <label class="control-label">2. Temporal Change & Season Delta</label>
+            <div class="grid-buttons">
+              <button class="btn active" id="btn-season-summer" data-season="summer">🌿 Summer Green</button>
+              <button class="btn" id="btn-season-autumn" data-season="autumn">🍁 Autumn Gold</button>
+              <button class="btn" id="btn-season-winter" data-season="winter">🧊 Winter Ice</button>
+              <button class="btn" id="btn-season-spring" data-season="spring">🌸 Spring Bloom</button>
+            </div>
           </div>
         </div>
       </div>
