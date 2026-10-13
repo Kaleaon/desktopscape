@@ -178,6 +178,48 @@ describe('Keyframe Extraction & 3D Feature Stitching Pipeline', () => {
     assert.strictEqual(result.perspective, 'drone-aerial');
     assert.strictEqual(result.season, 'autumn');
   });
+
+  test('buildSpatialGrid partitions keypoints into 2D spatial grid cells and queries adjacent cells', () => {
+    const keypoints = [
+      { x: 10, y: 15, descriptor: [1, 0, 0, 0, 0, 0] },
+      { x: 25, y: 35, descriptor: [0, 1, 0, 0, 0, 0] },
+      { x: 100, y: 150, descriptor: [0, 0, 1, 0, 0, 0] }
+    ];
+
+    const gridInfo = ImageStitcher.buildSpatialGrid(keypoints, 30);
+    assert.ok(gridInfo.grid instanceof Map, 'Spatial grid must be a Map instance');
+    assert.ok(gridInfo.grid.has('0,0'), 'Grid cell 0,0 must contain keypoint at (10,15)');
+
+    const candidates = ImageStitcher.queryAdjacentGridCells(gridInfo, 12, 18);
+    assert.ok(candidates.includes(keypoints[0]), 'Adjacent cell query must find nearby keypoint');
+    assert.ok(candidates.includes(keypoints[1]), 'Adjacent cell query must find keypoint in adjacent bucket');
+    assert.strictEqual(candidates.includes(keypoints[2]), false, 'Distant keypoint (100,150) must not be in adjacent cell neighborhood');
+  });
+
+  test('matchKeypoints uses spatial grid and bounding box pre-filtering for keypoint matching', () => {
+    const keypointsA = [
+      { x: 50, y: 50, descriptor: [0.5, 0.5, 0.5, 0.5, 0.0, 0.0] }
+    ];
+    const keypointsB = [
+      { x: 55, y: 52, descriptor: [0.5, 0.5, 0.5, 0.5, 0.0, 0.0] }, // within radius 30 and close descriptor
+      { x: 200, y: 200, descriptor: [0.5, 0.5, 0.5, 0.5, 0.0, 0.0] } // far outside search radius
+    ];
+
+    const matches = ImageStitcher.matchKeypoints(keypointsA, keypointsB, 30);
+    assert.strictEqual(matches.length, 1);
+    assert.strictEqual(matches[0].kpA, keypointsA[0]);
+    assert.strictEqual(matches[0].kpB, keypointsB[0]);
+  });
+
+  test('createMatchLookupMap stores pairwise matches in Map structure for O(1) constant time retrieval', () => {
+    const kpA = { x: 10, y: 10 };
+    const kpB = { x: 12, y: 14 };
+    const match = { kpA, kpB, dx: 2, dy: 4, spatialDist: 4.47, distance: 0.5 };
+
+    const matchMap = ImageStitcher.createMatchLookupMap([match]);
+    assert.ok(matchMap instanceof Map, 'Match lookup map must be a Map instance');
+    assert.strictEqual(matchMap.get(kpA), match, 'Map must retrieve pairwise match in constant time');
+  });
 });
 
 describe('Winter River Ice & Environmental Calculations', () => {
