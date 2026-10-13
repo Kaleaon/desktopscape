@@ -251,3 +251,184 @@ input[type="text"]:focus {
   color: var(--text-muted);
   border: 1px dashed var(--border-glass);
 }
+
+/* ==========================================================================
+   Skeleton Loading Placeholders & Shimmer Animation
+   ========================================================================== */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 400px 100%;
+  animation: skeleton-shimmer 1.6s infinite ease-in-out;
+}
+
+.skeleton-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.skeleton-label {
+  height: 14px;
+  width: 50%;
+  border-radius: 4px;
+}
+
+.skeleton-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.skeleton-btn {
+  height: 38px;
+  border-radius: 8px;
+}
+
+.skeleton-btn.full-width {
+  width: 100%;
+}
+
+.skeleton-slider {
+  height: 24px;
+  border-radius: 12px;
+  width: 100%;
+}
+
+.skeleton-input {
+  height: 36px;
+  border-radius: 8px;
+  width: 100%;
+}
+
+.skeleton-box, .skeleton-card {
+  border-radius: 8px;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Localized Error Boundary Fallback Cards
+   ========================================================================== */
+.error-boundary-card {
+  background: rgba(38, 18, 26, 0.88);
+  border: 1px solid rgba(255, 85, 116, 0.35);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #f8fafc;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.error-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-icon {
+  font-size: 16px;
+}
+
+.error-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff5574;
+  letter-spacing: 0.3px;
+}
+
+.error-code-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 85, 116, 0.2);
+  color: #ff758f;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 85, 116, 0.3);
+}
+
+.error-message {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.error-backoff-info {
+  font-size: 11px;
+  color: #f2994a;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-retry {
+  background: linear-gradient(135deg, #11998e, #38ef7d) !important;
+  color: #070a10 !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+
+.btn-retry:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 12px rgba(56, 239, 125, 0.4);
+}
+
+.btn-retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-fallback {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--border-glass) !important;
+  color: var(--text-muted) !important;
+}
+
+.btn-fallback:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-main) !important;
+}
+

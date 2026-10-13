@@ -4,14 +4,34 @@
  * temporal delta selectors, and incremental ingestion interactions.
  */
 
+import { AsyncBoundaryManager, PANEL_TYPES, ERROR_CODES } from './asyncBoundary.js';
+
 export class UIController {
   constructor(app) {
     this.app = app;
     this.selectedPose = 'drone-aerial';
     this.selectedSeason = 'summer';
 
+    this.initBoundaryManager();
     this.initDOM();
     this.bindEvents();
+  }
+
+  initBoundaryManager() {
+    this.boundaryManager = new AsyncBoundaryManager({
+      onFallbackNavigate: (panelType) => {
+        if (panelType !== PANEL_TYPES.SCENES) {
+          this.switchTab('scenes');
+        } else {
+          this.switchScene('riverfront');
+        }
+      }
+    });
+
+    this.boundaryManager.registerPanel(PANEL_TYPES.SCENES, 'panel-scenes');
+    this.boundaryManager.registerPanel(PANEL_TYPES.TIME, 'panel-time');
+    this.boundaryManager.registerPanel(PANEL_TYPES.WEATHER, 'panel-weather');
+    this.boundaryManager.registerPanel(PANEL_TYPES.YOUTUBE, 'panel-youtube');
   }
 
   initDOM() {
@@ -36,6 +56,17 @@ export class UIController {
     this.statSeason = document.getElementById('stat-season');
   }
 
+  switchTab(tabKey) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabKey}"]`);
+    if (btn) btn.classList.add('active');
+
+    const panel = document.getElementById(`panel-${tabKey}`);
+    if (panel) panel.classList.add('active');
+  }
+
   bindEvents() {
     // Collapsible Dashboard Toggle
     if (this.toggleBtn) {
@@ -47,13 +78,8 @@ export class UIController {
     // Tab Navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-
-        btn.classList.add('active');
         const target = btn.dataset.tab;
-        const panel = document.getElementById(`panel-${target}`);
-        if (panel) panel.classList.add('active');
+        this.switchTab(target);
       });
     });
 
@@ -103,7 +129,7 @@ export class UIController {
     const resetBtn = document.getElementById('btn-reset-model');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        this.app.loadScene('riverfront');
+        this.switchScene('riverfront');
         if (this.ytStatus) this.ytStatus.textContent = 'Reset base model to Peoria Riverfront.';
       });
     }
@@ -113,8 +139,7 @@ export class UIController {
       this.sliderTime.addEventListener('input', (e) => {
         const hours = parseFloat(e.target.value);
         this.app.envEngine.autoSyncClock = false;
-        this.app.envEngine.setTimeOfDay(hours);
-        this.updateTimeDisplay(hours);
+        this.setTime(hours);
       });
     }
 
@@ -149,18 +174,22 @@ export class UIController {
     if (this.sliderIce) {
       this.sliderIce.addEventListener('input', (e) => {
         const ice = parseFloat(e.target.value);
-        this.app.envEngine.setWeather({ ice });
-        this.updateIceDisplay(ice);
+        this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+          this.app.envEngine.setWeather({ ice });
+          this.updateIceDisplay(ice);
+        });
       });
     }
 
     if (this.sliderTemp) {
       this.sliderTemp.addEventListener('input', (e) => {
         const temp = parseInt(e.target.value);
-        this.app.envEngine.setWeather({ temp });
-        this.updateTempDisplay(temp);
-        this.updateIceDisplay(this.app.envEngine.weather.winterIce);
-        if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
+        this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+          this.app.envEngine.setWeather({ temp });
+          this.updateTempDisplay(temp);
+          this.updateIceDisplay(this.app.envEngine.weather.winterIce);
+          if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
+        });
       });
     }
 
@@ -200,7 +229,7 @@ export class UIController {
         }
       });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
-      window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      window.electronAPI.onSetWeather((params) => this.setWeather(params.preset || 'clear'));
       window.electronAPI.onDesktopModeChanged((isDesktop) => {
         const badge = document.getElementById('mode-badge');
         if (badge) {
@@ -211,32 +240,38 @@ export class UIController {
     }
   }
 
-  switchScene(sceneName) {
+  async switchScene(sceneName) {
     document.querySelectorAll('#panel-scenes .btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`btn-scene-${sceneName}`);
     if (btn) btn.classList.add('active');
 
-    this.app.loadScene(sceneName);
-    if (this.widgetScene) this.widgetScene.textContent = sceneName.charAt(0).toUpperCase() + sceneName.slice(1);
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.SCENES, async () => {
+      await this.app.loadScene(sceneName);
+      if (this.widgetScene) this.widgetScene.textContent = sceneName.charAt(0).toUpperCase() + sceneName.slice(1);
+    });
   }
 
-  setTime(hours) {
+  async setTime(hours) {
     if (this.sliderTime) this.sliderTime.value = hours;
-    this.app.envEngine.setTimeOfDay(hours);
-    this.updateTimeDisplay(hours);
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.TIME, async () => {
+      await this.app.envEngine.setTimeOfDay(hours);
+      this.updateTimeDisplay(hours);
+    });
   }
 
-  setWeather(preset) {
+  async setWeather(preset) {
     document.querySelectorAll('#panel-weather .btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`btn-wx-${preset}`);
     if (btn) btn.classList.add('active');
 
-    this.app.envEngine.setWeather({ preset });
-    if (this.sliderTemp) this.sliderTemp.value = this.app.envEngine.weather.temperature;
-    if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+      await this.app.envEngine.setWeather({ preset });
+      if (this.sliderTemp) this.sliderTemp.value = this.app.envEngine.weather.temperature;
+      if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
 
-    this.updateTempDisplay(this.app.envEngine.weather.temperature);
-    this.updateIceDisplay(this.app.envEngine.weather.winterIce);
+      this.updateTempDisplay(this.app.envEngine.weather.temperature);
+      this.updateIceDisplay(this.app.envEngine.weather.winterIce);
+    });
   }
 
   updateTimeDisplay(hours) {
@@ -269,8 +304,8 @@ export class UIController {
   }
 
   async processYouTubeUrl(url) {
-    if (this.ytStatus) this.ytStatus.textContent = 'Extracting spatial keyframe images and performing 3D feature stitching...';
-    try {
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.YOUTUBE, async () => {
+      if (this.ytStatus) this.ytStatus.textContent = 'Extracting spatial keyframe images and performing 3D feature stitching...';
       const options = {
         perspective: this.selectedPose,
         season: this.selectedSeason,
@@ -302,8 +337,18 @@ export class UIController {
         document.querySelectorAll('#panel-scenes .btn').forEach(b => b.classList.remove('active'));
         customBtn.classList.add('active');
       }
-    } catch (err) {
-      if (this.ytStatus) this.ytStatus.textContent = `Error processing video keyframes: ${err.message}`;
-    }
+    });
+  }
+
+  async simulateNetworkFailure(panelType, errorCode, errorMessage) {
+    const error = new Error(errorMessage || `Simulated network disruption on ${panelType} panel.`);
+    error.code = errorCode || ERROR_CODES.NETWORK_DISRUPTION;
+
+    return this.boundaryManager.executePanelTask(panelType, async () => {
+      throw error;
+    }).catch(() => {
+      // Intentionally caught by localized AsyncBoundary
+    });
   }
 }
+
