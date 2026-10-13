@@ -47,7 +47,7 @@ class PeoriaDesktopscapeApp {
     this.customSplatData = data;
   }
 
-  loadScene(sceneKey) {
+  async loadScene(sceneKey) {
     let sceneData;
     switch (sceneKey) {
       case 'skyline':
