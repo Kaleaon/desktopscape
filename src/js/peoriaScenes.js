@@ -4,12 +4,12 @@
  * Downtown Peoria Skyline, and Grandview Drive Overlook.
  */
 
+import { SplatDataset } from './splatDataset.js';
+
 export function generatePeoriaRiverfrontScene() {
-  const pointsCount = 45000;
-  const positions = new Float32Array(pointsCount * 3);
-  const scales = new Float32Array(pointsCount * 3);
-  const colors = new Float32Array(pointsCount * 4);
-  const rotations = new Float32Array(pointsCount * 4);
+  const dataset = SplatDataset.allocate(45000, { name: 'Peoria Riverfront & Illinois River' });
+  const { positions, scales, colors, rotations } = dataset;
+  const pointsCount = dataset.pointsCount;
 
   let idx = 0;
 
@@ -107,15 +107,13 @@ export function generatePeoriaRiverfrontScene() {
     idx++;
   }
 
-  return { name: 'Peoria Riverfront & Illinois River', positions, scales, colors, rotations };
+  return dataset;
 }
 
 export function generatePeoriaSkylineScene() {
-  const pointsCount = 50000;
-  const positions = new Float32Array(pointsCount * 3);
-  const scales = new Float32Array(pointsCount * 3);
-  const colors = new Float32Array(pointsCount * 4);
-  const rotations = new Float32Array(pointsCount * 4);
+  const dataset = SplatDataset.allocate(50000, { name: 'Downtown Peoria Skyline' });
+  const { positions, scales, colors, rotations } = dataset;
+  const pointsCount = dataset.pointsCount;
 
   let idx = 0;
 
@@ -186,15 +184,13 @@ export function generatePeoriaSkylineScene() {
     idx++;
   }
 
-  return { name: 'Downtown Peoria Skyline', positions, scales, colors, rotations };
+  return dataset;
 }
 
 export function generateGrandviewDriveScene() {
-  const pointsCount = 40000;
-  const positions = new Float32Array(pointsCount * 3);
-  const scales = new Float32Array(pointsCount * 3);
-  const colors = new Float32Array(pointsCount * 4);
-  const rotations = new Float32Array(pointsCount * 4);
+  const dataset = SplatDataset.allocate(40000, { name: 'Grandview Drive Overlook' });
+  const { positions, scales, colors, rotations } = dataset;
+  const pointsCount = dataset.pointsCount;
 
   let idx = 0;
 
@@ -229,5 +225,5 @@ export function generateGrandviewDriveScene() {
     idx++;
   }
 
-  return { name: 'Grandview Drive Overlook', positions, scales, colors, rotations };
+  return dataset;
 }

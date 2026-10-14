@@ -6,6 +6,7 @@
 
 import { alignSpatialSplatPoints, estimateCameraPose } from './registrationEngine.js';
 import { analyzeTemporalDelta, applyTemporalDeltaToSplats } from './temporalDeltaAnalyzer.js';
+import { SplatDataset } from './splatDataset.js';
 
 export class IncrementalSplatModel {
   constructor(baseSplatData = null) {
@@ -221,13 +222,13 @@ export class IncrementalSplatModel {
   }
 
   getSplatData() {
-    return {
-      name: 'Peoria Fused 3D Gaussian Splat Model',
-      positions: new Float32Array(this.positionsList),
-      scales: new Float32Array(this.scalesList),
-      colors: new Float32Array(this.colorsList),
-      rotations: new Float32Array(this.rotationsList)
-    };
+    return SplatDataset.fromLists(
+      this.positionsList,
+      this.scalesList,
+      this.colorsList,
+      this.rotationsList,
+      { name: 'Peoria Fused 3D Gaussian Splat Model' }
+    );
   }
 
   getStatistics() {
