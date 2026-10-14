@@ -16,6 +16,14 @@ export class GaussianSplatRenderer {
     this.splatData = null;
     this.splatCount = 0;
     this.sortedIndices = null;
+
+    // Off-thread Web Worker depth sorting state
+    this.worker = null;
+    this.isWorkerSorting = false;
+    this.lastSortedCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+    this.cameraMotionThreshold = 0.01;
+    this.reusableIndexBuffer = null;
+    this.sortPending = false;
     
     // Environmental elements
     this.riverMesh = null;
@@ -24,6 +32,52 @@ export class GaussianSplatRenderer {
     this.skyMesh = null;
     
     this.init();
+    this.initWorker();
+  }
+
+  initWorker() {
+    if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+      try {
+        this.worker = new Worker(new URL('./splatSortWorker.js', import.meta.url), { type: 'module' });
+      } catch (e1) {
+        try {
+          this.worker = new Worker('js/splatSortWorker.js');
+        } catch (e2) {
+          console.warn('Worker initialization fallback:', e2);
+          this.worker = null;
+        }
+      }
+    }
+
+    if (this.worker) {
+      this.worker.onmessage = (e) => this.onWorkerMessage(e);
+      this.worker.onerror = (err) => {
+        console.error('Splat depth sort worker error:', err);
+        this.isWorkerSorting = false;
+      };
+    }
+  }
+
+  onWorkerMessage(e) {
+    const data = e.data || {};
+    const type = data.type || data.action;
+
+    if (type === 'sortComplete') {
+      this.isWorkerSorting = false;
+      if (data.indices) {
+        const rawBuffer = data.indices instanceof ArrayBuffer ? data.indices : data.indices.buffer;
+        const sortedIndices = new Int32Array(rawBuffer);
+        this.updateInstancedAttributes(sortedIndices);
+        this.reusableIndexBuffer = rawBuffer;
+      }
+
+      if (this.sortPending) {
+        this.sortPending = false;
+        this.checkAndTriggerWorkerSort(true);
+      }
+    } else if (type === 'initComplete' || type === 'updateComplete') {
+      this.checkAndTriggerWorkerSort(true);
+    }
   }
 
   init() {
@@ -262,7 +316,112 @@ export class GaussianSplatRenderer {
     this.splatMesh = new THREE.InstancedMesh(geometry, splatMaterial, this.splatCount);
     this.scene.add(this.splatMesh);
 
-    this.sortSplats();
+    // Reset worker state and reusable buffers on scene load
+    this.reusableIndexBuffer = null;
+    this.lastSortedCamPos.set(Infinity, Infinity, Infinity);
+
+    if (this.worker) {
+      const posBufferCopy = positions.slice().buffer;
+      this.worker.postMessage({ type: 'init', action: 'init', positions: posBufferCopy }, [posBufferCopy]);
+    } else {
+      this.sortSplats();
+    }
+  }
+
+  checkAndTriggerWorkerSort(force = false) {
+    if (!this.splatMesh || this.splatCount === 0) return;
+
+    if (!this.worker) {
+      const distMoved = this.camera.position.distanceTo(this.lastSortedCamPos);
+      if (force || distMoved > this.cameraMotionThreshold) {
+        this.sortSplats();
+        this.lastSortedCamPos.copy(this.camera.position);
+      }
+      return;
+    }
+
+    if (this.isWorkerSorting) {
+      this.sortPending = true;
+      return;
+    }
+
+    const distMoved = this.camera.position.distanceTo(this.lastSortedCamPos);
+    if (!force && distMoved <= this.cameraMotionThreshold) {
+      return;
+    }
+
+    this.isWorkerSorting = true;
+    this.lastSortedCamPos.copy(this.camera.position);
+
+    const camPos = [this.camera.position.x, this.camera.position.y, this.camera.position.z];
+    const msg = {
+      type: 'sort',
+      action: 'sort',
+      cameraPosition: camPos
+    };
+
+    if (this.reusableIndexBuffer && this.reusableIndexBuffer.byteLength >= this.splatCount * 4) {
+      msg.indices = this.reusableIndexBuffer;
+      const transferBuf = this.reusableIndexBuffer;
+      this.reusableIndexBuffer = null;
+      this.worker.postMessage(msg, [transferBuf]);
+    } else {
+      this.worker.postMessage(msg);
+    }
+  }
+
+  updateInstancedAttributes(sortedIndices) {
+    if (!this.splatData || !this.splatMesh || !sortedIndices) return;
+
+    const count = this.splatCount;
+    if (!this.sortedPos || this.sortedPos.length !== count * 3) {
+      this.sortedPos = new Float32Array(count * 3);
+      this.sortedScales = new Float32Array(count * 3);
+      this.sortedColors = new Float32Array(count * 4);
+      this.sortedRotations = new Float32Array(count * 4);
+    }
+
+    const pos = this.splatData.positions;
+    const scales = this.splatData.scales;
+    const colors = this.splatData.colors;
+    const rotations = this.splatData.rotations;
+
+    for (let i = 0; i < count; i++) {
+      const origIdx = sortedIndices[i];
+
+      this.sortedPos[i * 3]     = pos[origIdx * 3];
+      this.sortedPos[i * 3 + 1] = pos[origIdx * 3 + 1];
+      this.sortedPos[i * 3 + 2] = pos[origIdx * 3 + 2];
+
+      this.sortedScales[i * 3]     = scales[origIdx * 3];
+      this.sortedScales[i * 3 + 1] = scales[origIdx * 3 + 1];
+      this.sortedScales[i * 3 + 2] = scales[origIdx * 3 + 2];
+
+      this.sortedColors[i * 4]     = colors[origIdx * 4];
+      this.sortedColors[i * 4 + 1] = colors[origIdx * 4 + 1];
+      this.sortedColors[i * 4 + 2] = colors[origIdx * 4 + 2];
+      this.sortedColors[i * 4 + 3] = colors[origIdx * 4 + 3];
+
+      this.sortedRotations[i * 4]     = rotations[origIdx * 4];
+      this.sortedRotations[i * 4 + 1] = rotations[origIdx * 4 + 1];
+      this.sortedRotations[i * 4 + 2] = rotations[origIdx * 4 + 2];
+      this.sortedRotations[i * 4 + 3] = rotations[origIdx * 4 + 3];
+    }
+
+    this.sortedIndices = sortedIndices;
+
+    const geo = this.splatMesh.geometry;
+    geo.attributes.splatPosition.array.set(this.sortedPos);
+    geo.attributes.splatPosition.needsUpdate = true;
+
+    geo.attributes.splatScale.array.set(this.sortedScales);
+    geo.attributes.splatScale.needsUpdate = true;
+
+    geo.attributes.splatColor.array.set(this.sortedColors);
+    geo.attributes.splatColor.needsUpdate = true;
+
+    geo.attributes.splatRotation.array.set(this.sortedRotations);
+    geo.attributes.splatRotation.needsUpdate = true;
   }
 
   sortSplats() {
@@ -286,46 +445,7 @@ export class GaussianSplatRenderer {
     }
 
     indices.sort((a, b) => distances[b] - distances[a]);
-    this.sortedIndices = indices;
-
-    const sortedPos = new Float32Array(count * 3);
-    const sortedScales = new Float32Array(count * 3);
-    const sortedColors = new Float32Array(count * 4);
-    const sortedRotations = new Float32Array(count * 4);
-
-    for (let i = 0; i < count; i++) {
-      const origIdx = indices[i];
-      sortedPos[i * 3] = pos[origIdx * 3];
-      sortedPos[i * 3 + 1] = pos[origIdx * 3 + 1];
-      sortedPos[i * 3 + 2] = pos[origIdx * 3 + 2];
-
-      sortedScales[i * 3] = this.splatData.scales[origIdx * 3];
-      sortedScales[i * 3 + 1] = this.splatData.scales[origIdx * 3 + 1];
-      sortedScales[i * 3 + 2] = this.splatData.scales[origIdx * 3 + 2];
-
-      sortedColors[i * 4] = this.splatData.colors[origIdx * 4];
-      sortedColors[i * 4 + 1] = this.splatData.colors[origIdx * 4 + 1];
-      sortedColors[i * 4 + 2] = this.splatData.colors[origIdx * 4 + 2];
-      sortedColors[i * 4 + 3] = this.splatData.colors[origIdx * 4 + 3];
-
-      sortedRotations[i * 4] = this.splatData.rotations[origIdx * 4];
-      sortedRotations[i * 4 + 1] = this.splatData.rotations[origIdx * 4 + 1];
-      sortedRotations[i * 4 + 2] = this.splatData.rotations[origIdx * 4 + 2];
-      sortedRotations[i * 4 + 3] = this.splatData.rotations[origIdx * 4 + 3];
-    }
-
-    const geo = this.splatMesh.geometry;
-    geo.attributes.splatPosition.array.set(sortedPos);
-    geo.attributes.splatPosition.needsUpdate = true;
-
-    geo.attributes.splatScale.array.set(sortedScales);
-    geo.attributes.splatScale.needsUpdate = true;
-
-    geo.attributes.splatColor.array.set(sortedColors);
-    geo.attributes.splatColor.needsUpdate = true;
-
-    geo.attributes.splatRotation.array.set(sortedRotations);
-    geo.attributes.splatRotation.needsUpdate = true;
+    this.updateInstancedAttributes(indices);
   }
 
   updateLighting(timeOfDayHours, weatherState) {
@@ -389,6 +509,8 @@ export class GaussianSplatRenderer {
     if (this.splatUniforms) {
       this.splatUniforms.uTime.value += timeDelta;
     }
+
+    this.checkAndTriggerWorkerSort();
 
     this.renderer.render(this.scene, this.camera);
   }
