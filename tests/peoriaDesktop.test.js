@@ -14,6 +14,9 @@ const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend'
 const { extractFrames } = require('../scripts/extractFrames');
 const { ImageStitcher } = require('../src/js/imageStitcher');
 
+const { createBMPBuffer } = require('../scripts/utils/bmpWriter');
+const { computeSkyGradient, computeIllinoisRiver, getSyntheticSceneBasePixel } = require('../scripts/utils/syntheticScene');
+
 const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
 const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
 const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
@@ -420,4 +423,111 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
     assert.ok(btnDrawerWeather.classList.contains('has-active-settings'), 'Drawer button must highlight when non-default secondary settings are active');
   });
 });
+
+describe('Shared BMP Encoder & Synthetic Scene Utilities', () => {
+  test('createBMPBuffer packs 24-bit headers, DIB metadata, clamped RGB, and bottom-up pixel rows', () => {
+    const width = 4;
+    const height = 2;
+    const buf = createBMPBuffer(width, height, (x, y) => {
+      // Top row (y=1) red, bottom row (y=0) green
+      return y === 1 ? { r: 300, g: -10, b: 50 } : { r: 10, g: 200, b: 20 };
+    });
+
+    // Check Magic Header 'BM'
+    assert.strictEqual(buf.toString('ascii', 0, 2), 'BM');
+
+    // Check File Size (54 header + 4 width * 3 bytes * 2 rows = 54 + 24 = 78 bytes)
+    assert.strictEqual(buf.readUInt32LE(2), 78);
+
+    // Check Pixel Array Offset (54)
+    assert.strictEqual(buf.readUInt32LE(10), 54);
+
+    // Check DIB Header Size (40)
+    assert.strictEqual(buf.readUInt32LE(14), 40);
+
+    // Check Dimensions (width=4, height=2)
+    assert.strictEqual(buf.readInt32LE(18), 4);
+    assert.strictEqual(buf.readInt32LE(22), 2);
+
+    // Check Planes (1) and Bit Depth (24)
+    assert.strictEqual(buf.readUInt16LE(26), 1);
+    assert.strictEqual(buf.readUInt16LE(28), 24);
+
+    // Check bottom-up ordering:
+    // y=1 (top row) is placed at file offset 54 (first row in file buffer): red r:300 clamped to 255, g:-10 clamped to 0, b:50 -> BGR 50, 0, 255
+    assert.strictEqual(buf[54], 50);  // B
+    assert.strictEqual(buf[55], 0);   // G
+    assert.strictEqual(buf[56], 255); // R
+
+    // y=0 (bottom row) is placed at file offset 54 + 12 = 66: green r:10, g:200, b:20 -> BGR 20, 200, 10
+    assert.strictEqual(buf[66], 20);  // B
+    assert.strictEqual(buf[67], 200); // G
+    assert.strictEqual(buf[68], 10);  // R
+  });
+
+  test('createBMPBuffer accurately calculates 4-byte row alignment padding for odd image widths', () => {
+    // Width = 5 -> 5 * 3 = 15 bytes pixel data, padded to 16 bytes per row
+    const width = 5;
+    const height = 3;
+    const buf = createBMPBuffer(width, height, () => ({ r: 100, g: 150, b: 200 }));
+
+    const expectedRowSize = 16;
+    const expectedFileSize = 54 + expectedRowSize * height; // 54 + 48 = 102 bytes
+
+    assert.strictEqual(buf.length, expectedFileSize);
+    assert.strictEqual(buf.readUInt32LE(2), expectedFileSize);
+    assert.strictEqual(buf.readUInt32LE(34), expectedRowSize * height);
+  });
+
+  test('computeSkyGradient calculates accurate RGB values across presets and custom options', () => {
+    const daySkyTop = computeSkyGradient(0.0, 'day');
+    const daySkyBottom = computeSkyGradient(1.0, 'day');
+
+    assert.strictEqual(daySkyTop.r, 100);
+    assert.strictEqual(daySkyTop.g, 160);
+    assert.strictEqual(daySkyTop.b, 230);
+
+    assert.strictEqual(daySkyBottom.r, 200);
+    assert.strictEqual(daySkyBottom.g, 240);
+    assert.strictEqual(daySkyBottom.b, 250);
+
+    const nightSky = computeSkyGradient(0.5, 'night');
+    assert.strictEqual(nightSky.r, 8);
+    assert.strictEqual(nightSky.g, 14);
+    assert.strictEqual(nightSky.b, 28);
+  });
+
+  test('computeIllinoisRiver handles river boundary threshold, winter ice pattern, and night bridge reflection', () => {
+    // Above threshold returns null
+    const skyArea = computeIllinoisRiver(100, 50, 0.40, 800, 'day');
+    assert.strictEqual(skyArea, null);
+
+    // Below threshold returns river color
+    const dayRiver = computeIllinoisRiver(100, 350, 0.70, 800, 'day');
+    assert.ok(dayRiver !== null);
+    assert.strictEqual(dayRiver.r, 14);
+    assert.strictEqual(dayRiver.g, 46);
+    assert.strictEqual(dayRiver.b, 66);
+
+    // Winter ice pattern
+    const winterIce = computeIllinoisRiver(100, 350, 0.70, 800, 'winter');
+    assert.ok(winterIce.r >= 200 && winterIce.r <= 240);
+    assert.strictEqual(winterIce.b, 255);
+
+    // Night river bridge specular reflection
+    const nightCenterBridge = computeIllinoisRiver(400, 350, 0.70, 800, 'night'); // x=400 is center width
+    const nightEdgeRiver = computeIllinoisRiver(50, 350, 0.70, 800, 'night');
+
+    assert.ok(nightCenterBridge.r > nightEdgeRiver.r, 'Bridge center reflection must boost red intensity');
+  });
+
+  test('getSyntheticSceneBasePixel seamlessly combines sky and river calculations', () => {
+    const skyPixel = getSyntheticSceneBasePixel(100, 50, 800, 500, 'day');
+    const riverPixel = getSyntheticSceneBasePixel(100, 400, 800, 500, 'day');
+
+    assert.strictEqual(skyPixel.r, computeSkyGradient(50 / 500, 'day').r);
+    assert.strictEqual(riverPixel.r, computeIllinoisRiver(100, 400, 400 / 500, 800, 'day').r);
+  });
+});
+
 
