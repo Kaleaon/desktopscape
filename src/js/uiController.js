@@ -204,37 +204,45 @@ export class UIController {
     const btnCamTour = document.getElementById('btn-cam-tour');
     if (btnCamTour) btnCamTour.addEventListener('click', () => this.setCameraMode('tour'));
 
-    // Camera Registration Pose Selection inside Contextual Drawer
-    ['drone', 'ground', 'bluff', 'oblique'].forEach(poseKey => {
-      const btn = document.getElementById(`btn-pose-${poseKey}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('[id^="btn-pose-"]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          this.selectedPose = btn.dataset.pose;
-          this.settings.cameraPose = this.selectedPose;
-          if (this.statPose) this.statPose.textContent = btn.textContent.split(' ')[1] || this.selectedPose;
-          this.saveSecondarySettings();
-          this.updateVisualIndicators();
-        });
-      }
-    });
+    // Delegated Event Listener on #contextual-drawer for Camera Pose and Seasonal Selection Controls
+    const contextualDrawerContainer = document.getElementById('contextual-drawer') || document.getElementById('drawers-overlay');
+    if (contextualDrawerContainer) {
+      contextualDrawerContainer.addEventListener('click', (e) => {
+        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('button[data-drawer-group]') : null;
+        if (!btn) return;
 
-    // Seasonal Delta Selection inside Contextual Drawer
-    ['summer', 'autumn', 'winter', 'spring'].forEach(seasonKey => {
-      const btn = document.getElementById(`btn-season-${seasonKey}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('[id^="btn-season-"]').forEach(b => b.classList.remove('active'));
+        const group = btn.dataset.drawerGroup || btn.getAttribute('data-drawer-group');
+        const value = btn.dataset.drawerValue || btn.getAttribute('data-drawer-value');
+        if (!group || !value) return;
+
+        if (typeof e.stopPropagation === 'function') {
+          e.stopPropagation();
+        }
+
+        if (group === 'pose' || group === 'cameraPose') {
+          contextualDrawerContainer.querySelectorAll(`[data-drawer-group="${group}"]`).forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          this.selectedSeason = btn.dataset.season;
-          this.settings.selectedSeason = this.selectedSeason;
-          if (this.statSeason) this.statSeason.textContent = seasonKey.charAt(0).toUpperCase() + seasonKey.slice(1);
+          this.selectedPose = value;
+          this.settings.cameraPose = value;
+          if (this.statPose) {
+            const textParts = (btn.textContent || '').trim().split(' ');
+            this.statPose.textContent = textParts.length > 1 ? textParts.slice(1).join(' ') : value;
+          }
           this.saveSecondarySettings();
           this.updateVisualIndicators();
-        });
-      }
-    });
+        } else if (group === 'season' || group === 'selectedSeason') {
+          contextualDrawerContainer.querySelectorAll(`[data-drawer-group="${group}"]`).forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.selectedSeason = value;
+          this.settings.selectedSeason = value;
+          if (this.statSeason) {
+            this.statSeason.textContent = value.charAt(0).toUpperCase() + value.slice(1);
+          }
+          this.saveSecondarySettings();
+          this.updateVisualIndicators();
+        }
+      });
+    }
 
     // Reset Model Button
     const resetBtn = document.getElementById('btn-reset-model');

@@ -4,6 +4,8 @@
  * and architectural shifts across multi-temporal photos and videos.
  */
 
+import { SplatDataset } from './splatDataset.js';
+
 export class TemporalDelta {
   constructor(options = {}) {
     this.timeOfDay = options.timeOfDay || 12.0;               // 0.0 - 24.0 hours
@@ -184,11 +186,12 @@ export function applyTemporalDeltaToSplats(splatData, temporalDelta, options = {
 
   return {
     temporalDelta: delta,
-    splatData: {
-      positions: splatData.positions,
-      scales: splatData.scales,
-      colors: updatedColors,
-      rotations: splatData.rotations
-    }
+    splatData: SplatDataset.fromLists(
+      splatData.positions,
+      splatData.scales,
+      updatedColors,
+      splatData.rotations,
+      { name: splatData.name }
+    )
   };
 }

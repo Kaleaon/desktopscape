@@ -10,6 +10,7 @@ const {
   generateGrandviewDriveScene
 } = require('../src/js/peoriaScenes');
 
+const { SplatDataset } = require('../src/js/splatDataset');
 const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
 const { extractFrames } = require('../scripts/extractFrames');
 const { ImageStitcher } = require('../src/js/imageStitcher');
@@ -17,6 +18,56 @@ const { ImageStitcher } = require('../src/js/imageStitcher');
 const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
 const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
 const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
+
+describe('SplatDataset Domain Class & Encapsulation', () => {
+  test('SplatDataset.allocate creates valid typed array dataset and validates buffers', () => {
+    const dataset = SplatDataset.allocate(100, { name: 'Test Dataset' });
+    assert.strictEqual(dataset.name, 'Test Dataset');
+    assert.strictEqual(dataset.count, 100);
+    assert.strictEqual(dataset.pointsCount, 100);
+    assert.strictEqual(dataset.positions.length, 300);
+    assert.strictEqual(dataset.scales.length, 300);
+    assert.strictEqual(dataset.colors.length, 400);
+    assert.strictEqual(dataset.rotations.length, 400);
+    assert.ok(dataset instanceof SplatDataset);
+  });
+
+  test('SplatDataset.fromLists constructs dataset from standard lists or Float32Arrays', () => {
+    const pos = [0, 1, 2];
+    const scales = [1, 1, 1];
+    const colors = [1, 0, 0, 1];
+    const rotations = [0, 0, 0, 1];
+
+    const dataset = SplatDataset.fromLists(pos, scales, colors, rotations, { name: 'Custom List' });
+    assert.ok(dataset.positions instanceof Float32Array);
+    assert.strictEqual(dataset.count, 1);
+    assert.strictEqual(dataset.name, 'Custom List');
+  });
+
+  test('SplatDataset validates mismatched buffer lengths', () => {
+    assert.throws(() => {
+      new SplatDataset(
+        new Float32Array(9),
+        new Float32Array(9),
+        new Float32Array(8), // Invalid color count for 3 points
+        new Float32Array(12)
+      );
+    }, /Invalid SplatDataset buffer lengths/);
+  });
+
+  test('Scene generators and pipeline engines return SplatDataset instances', () => {
+    const riverfront = generatePeoriaRiverfrontScene();
+    assert.ok(riverfront instanceof SplatDataset, 'generatePeoriaRiverfrontScene must return SplatDataset instance');
+
+    const model = new IncrementalSplatModel(riverfront);
+    const fused = model.getSplatData();
+    assert.ok(fused instanceof SplatDataset, 'IncrementalSplatModel.getSplatData must return SplatDataset instance');
+
+    const pose = estimateCameraPose({ perspective: 'drone-aerial' });
+    const aligned = alignSpatialSplatPoints(riverfront, pose);
+    assert.ok(aligned.splatData instanceof SplatDataset, 'alignSpatialSplatPoints must return SplatDataset instance');
+  });
+});
 
 describe('Peoria 3D Gaussian Splat Landmark Scenes', () => {
   test('generatePeoriaRiverfrontScene produces valid 3D Gaussian Splat dataset', () => {
