@@ -97,14 +97,18 @@ export function analyzeTemporalDelta(inputData = {}, baseSceneData = {}) {
   const baseCount = baseSceneData.positions ? baseSceneData.positions.length / 3 : count;
   const structuralShift = Math.abs(count - baseCount) / Math.max(1, baseCount);
 
-  return new TemporalDelta({
+  const delta = new TemporalDelta({
     timeOfDay: estimatedTimeOfDay,
     lightingCondition,
     season,
     winterIceDelta,
     foliageShift,
-    structuralShift: Math.min(1.0, structuralShift)
+    structuralShift: Math.min(1.0, structuralShift),
+    timestamp: inputData.timestamp || baseSceneData.timestamp || new Date().toISOString()
   });
+
+  console.log(`[TemporalDelta ${delta.timestamp}] Season: ${delta.season}, Lighting: ${delta.lightingCondition}, Ice: ${delta.winterIceDelta}`);
+  return delta;
 }
 
 /**

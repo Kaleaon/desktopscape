@@ -527,9 +527,18 @@ export class UIController {
     }
   }
 
-  handleError(err) {
+  handleError(err, options = {}) {
     const translated = translateError(err);
     this.showToast(translated.title, translated.message, translated.recoveryAction, 'error');
+
+    const isCritical = options.isCritical ||
+      (err && (err.isCritical || err.status >= 500 || /CRITICAL|502|503|504|ECONNREFUSED|UNHANDLED|DATABASE_EXCEPTION|INTERNAL_SERVER_ERROR/i.test(String(err)))) ||
+      (translated && (translated.title === 'Connection Unavailable' || translated.title === 'Processing Service Busy' || translated.title === 'Data Storage Busy'));
+
+    if (isCritical) {
+      this.showAlertModal(translated.title, translated.message, translated.recoveryAction);
+    }
+
     if (this.ytStatus) {
       this.ytStatus.textContent = `${translated.title}: ${translated.message}`;
     }

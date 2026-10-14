@@ -111,6 +111,11 @@ export function alignSpatialSplatPoints(splatData, cameraPose, worldOffset = [0,
   }
 
   const pose = cameraPose instanceof CameraPose ? cameraPose : estimateCameraPose(cameraPose);
+  const transformMatrix = pose.getTransformMatrix();
+  const m = transformMatrix.elements;
+  const focalLength = pose.focalLength || 35.0;
+  const focalScale = focalLength / 35.0;
+
   const count = splatData.positions.length / 3;
 
   const alignedPositions = new Float32Array(count * 3);
@@ -118,27 +123,22 @@ export function alignSpatialSplatPoints(splatData, cameraPose, worldOffset = [0,
   const alignedColors = new Float32Array(count * 4);
   const alignedRotations = new Float32Array(count * 4);
 
-  const [px, py, pz] = pose.position;
-  const [pitch, yaw, roll] = pose.rotation;
   const [wx, wy, wz] = worldOffset;
-
-  const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
-  const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
 
   for (let i = 0; i < count; i++) {
     const lx = splatData.positions[i * 3];
     const ly = splatData.positions[i * 3 + 1];
     const lz = splatData.positions[i * 3 + 2];
 
-    // Apply 3D Rotation (Pitch then Yaw)
-    const rx = lx * cosY + lz * sinY;
-    const ry = ly * cosP - (lz * cosY - lx * sinY) * sinP;
-    const rz = ly * sinP + (lz * cosY - lx * sinY) * cosP;
+    // Apply 3D Rotation via CameraPose transform matrix and focal length scaling factor
+    const rx = (lx * m[0] + ly * m[4] + lz * m[8]) * focalScale;
+    const ry = (lx * m[1] + ly * m[5] + lz * m[9]) * focalScale;
+    const rz = (lx * m[2] + ly * m[6] + lz * m[10]) * focalScale;
 
-    // Apply World Translation Offset relative to registered camera pose
-    alignedPositions[i * 3] = rx + (px * 0.1) + wx;
-    alignedPositions[i * 3 + 1] = ry + (py * 0.2) + wy;
-    alignedPositions[i * 3 + 2] = rz + (pz * 0.1) + wz;
+    // Apply World Translation Offset relative to registered camera pose matrix elements
+    alignedPositions[i * 3]     = rx + (m[12] * 0.1) + wx;
+    alignedPositions[i * 3 + 1] = ry + (m[13] * 0.2) + wy;
+    alignedPositions[i * 3 + 2] = rz + (m[14] * 0.1) + wz;
 
     // Preserve scales
     alignedScales[i * 3] = splatData.scales[i * 3];

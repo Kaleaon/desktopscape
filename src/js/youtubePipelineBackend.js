@@ -26,6 +26,7 @@ async function processYouTubePeoriaVideo(youtubeUrl, options = {}) {
     title: `Peoria 4K Gaussian Splat (${frameExtraction.videoId})`,
     pointsCount: stitchedResult.pointsCount,
     matchedKeypointsCount: stitchedResult.matchedKeypointsCount,
+    pairwiseMatches: stitchedResult.pairwiseMatches,
     frameCount: stitchedResult.frameCount,
     frameBufferDir: frameExtraction.frameBufferDir,
     perspective: options.perspective || options.cameraPose || 'drone-aerial',
