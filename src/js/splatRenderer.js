@@ -48,11 +48,101 @@ export class GaussianSplatRenderer {
     this.sunLight.position.set(100, 150, 50);
     this.scene.add(this.sunLight);
 
-    // Create Illinois River & Winter Ice Plane
+    // Create Illinois River & Winter Ice Plane, Sky, and Bridge Lights
     this.createIllinoisRiver();
+    this.createSkyMesh();
+    this.createBridgeLights();
+    this.createRiverIceOverlay();
 
     // Resize Listener
     window.addEventListener('resize', () => this.onWindowResize());
+  }
+
+  createSkyMesh() {
+    const skyGeo = new THREE.SphereGeometry(900, 32, 16);
+    this.skyUniforms = {
+      uSolarDirection: { value: new THREE.Vector3(0.5, 1.0, 0.2) },
+      uNightFactor: { value: 0.0 },
+      uTopColor: { value: new THREE.Color(0x3a7bd5) },
+      uBottomColor: { value: new THREE.Color(0x88b3e6) }
+    };
+    const skyMat = new THREE.ShaderMaterial({
+      uniforms: this.skyUniforms,
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSolarDirection;
+        uniform float uNightFactor;
+        uniform vec3 uTopColor;
+        uniform vec3 uBottomColor;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec3 pointOnSphere = normalize(vWorldPosition);
+          float h = max(0.0, pointOnSphere.y);
+          vec3 daySky = mix(uBottomColor, uTopColor, h);
+          vec3 nightSky = mix(vec3(0.02, 0.04, 0.08), vec3(0.005, 0.01, 0.03), h);
+          vec3 finalSky = mix(daySky, nightSky, uNightFactor);
+          gl_FragColor = vec4(finalSky, 1.0);
+        }
+      `,
+      side: THREE.BackSide
+    });
+    this.skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    this.scene.add(this.skyMesh);
+  }
+
+  createBridgeLights() {
+    this.bridgeLightsGroup = new THREE.Group();
+    this.bridgeLightsGroup.name = 'MurrayBakerBridgeLights';
+
+    const bridgeSpan = 160;
+    const lightCount = 12;
+    for (let i = 0; i < lightCount; i++) {
+      const t = (i / (lightCount - 1)) - 0.5;
+      const x = t * bridgeSpan;
+      const y = 14 + Math.sin((i / (lightCount - 1)) * Math.PI) * 4;
+      const z = -25;
+
+      const sphereGeo = new THREE.SphereGeometry(1.2, 8, 8);
+      const sphereMat = new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.8
+      });
+      const lightMesh = new THREE.Mesh(sphereGeo, sphereMat);
+      lightMesh.position.set(x, y, z);
+      this.bridgeLightsGroup.add(lightMesh);
+    }
+    this.scene.add(this.bridgeLightsGroup);
+  }
+
+  createRiverIceOverlay() {
+    const iceGeo = new THREE.PlaneGeometry(800, 800, 64, 64);
+    iceGeo.rotateX(-Math.PI / 2);
+
+    this.iceUniforms = {
+      uTime: { value: 0 },
+      uIceCoverage: { value: 0.0 }
+    };
+
+    const iceMat = new THREE.MeshStandardMaterial({
+      color: 0xeef7ff,
+      roughness: 0.2,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.0
+    });
+
+    this.riverIceOverlay = new THREE.Mesh(iceGeo, iceMat);
+    this.riverIceOverlay.position.y = -1.8;
+    this.scene.add(this.riverIceOverlay);
   }
 
   createIllinoisRiver() {
@@ -364,6 +454,32 @@ export class GaussianSplatRenderer {
       this.splatUniforms.uNightFactor.value = nightFactor;
     }
 
+    if (this.skyUniforms) {
+      this.skyUniforms.uSolarDirection.value.copy(sunDir);
+      this.skyUniforms.uNightFactor.value = nightFactor;
+      if (timeOfDayHours >= 17.5 && timeOfDayHours <= 19.5) {
+        this.skyUniforms.uBottomColor.value.setHex(0xff7733);
+        this.skyUniforms.uTopColor.value.setHex(0xaa5566);
+      } else {
+        this.skyUniforms.uBottomColor.value.setHex(0x88b3e6);
+        this.skyUniforms.uTopColor.value.setHex(0x3a7bd5);
+      }
+    }
+
+    if (this.bridgeLightsGroup) {
+      const lightOpacity = Math.max(0.1, nightFactor);
+      this.bridgeLightsGroup.children.forEach(mesh => {
+        if (mesh.material) mesh.material.opacity = lightOpacity * 0.9;
+      });
+    }
+
+    if (this.riverIceOverlay && weatherState) {
+      this.riverIceOverlay.material.opacity = Math.min(0.95, weatherState.winterIce * 0.9);
+      if (this.iceUniforms) {
+        this.iceUniforms.uIceCoverage.value = weatherState.winterIce;
+      }
+    }
+
     if (this.riverUniforms) {
       this.riverUniforms.uSunDirection.value.copy(sunDir);
       this.riverUniforms.uSunColor.value.copy(lightColor);
@@ -388,6 +504,14 @@ export class GaussianSplatRenderer {
     }
     if (this.splatUniforms) {
       this.splatUniforms.uTime.value += timeDelta;
+    }
+    if (this.iceUniforms) {
+      this.iceUniforms.uTime.value += timeDelta;
+    }
+
+    // Active depth sorting of splats in render loop
+    if (this.splatMesh && this.splatData) {
+      this.sortSplats();
     }
 
     this.renderer.render(this.scene, this.camera);

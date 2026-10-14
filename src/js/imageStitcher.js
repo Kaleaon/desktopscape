@@ -333,6 +333,7 @@ class ImageStitcher {
     return {
       pointsCount,
       matchedKeypointsCount: totalMatchesCount,
+      pairwiseMatches,
       frameCount: totalFrames,
       splatData: {
         positions: Array.from(positions),

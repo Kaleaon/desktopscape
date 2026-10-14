@@ -421,3 +421,218 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
   });
 });
 
+describe('Integration of Wired Functions & Unread State', () => {
+  const { CameraPose } = require('../src/js/registrationEngine');
+  const { clientErrorTranslationMiddleware } = require('../src/js/errorTranslationMiddleware');
+  const { GaussianSplatRenderer } = require('../src/js/splatRenderer');
+  const { EnvironmentEngine } = require('../src/js/environmentEngine');
+
+  function mockDOMEnvironment() {
+    const baseContext = {
+      VERSION: 7938,
+      VENDOR: 7936,
+      RENDERER: 7937,
+      SHADING_LANGUAGE_VERSION: 35724,
+      MAX_TEXTURE_SIZE: 34930,
+      MAX_CUBE_MAP_TEXTURE_SIZE: 34067,
+      MAX_RENDERBUFFER_SIZE: 34024,
+      MAX_VERTEX_ATTRIBS: 34921,
+      MAX_VERTEX_UNIFORM_VECTORS: 36347,
+      MAX_VARYING_VECTORS: 36348,
+      MAX_FRAGMENT_UNIFORM_VECTORS: 36349,
+      MAX_SAMPLES: 36183,
+
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+      createRadialGradient: () => ({ addColorStop: () => {} }),
+      getShaderSource: () => 'void main(){}',
+      getShaderInfoLog: () => '',
+      getProgramInfoLog: () => '',
+      getActiveUniform: () => ({ name: 'mockUniform', type: 35664, size: 1 }),
+      getActiveAttrib: () => ({ name: 'mockAttrib', type: 35664, size: 1 }),
+      getParameter: (p) => {
+        if (p === 7938 || p === 7937 || p === 7936 || p === 35724 || p === undefined) {
+          return 'WebGL 2.0';
+        }
+        return 16384;
+      },
+      getExtension: () => null,
+      getShaderPrecisionFormat: () => ({ rangeMin: 1, rangeMax: 1, precision: 23 }),
+      checkFramebufferStatus: () => 36053,
+      createProgram: () => ({}),
+      createShader: () => ({}),
+      createBuffer: () => ({}),
+      createTexture: () => ({}),
+      createFramebuffer: () => ({}),
+      createRenderbuffer: () => ({}),
+      getUniformLocation: () => ({}),
+      getAttribLocation: () => 0,
+      getShaderParameter: () => true,
+      getProgramParameter: () => true
+    };
+
+    const mockContext = new Proxy(baseContext, {
+      get: (target, prop) => {
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string') {
+          return () => {};
+        }
+        return undefined;
+      }
+    });
+
+    const mockCanvas = {
+      getContext: () => mockContext,
+      style: {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      width: 800,
+      height: 600
+    };
+
+    const mockElement = {
+      id: '',
+      className: '',
+      style: {},
+      classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
+      appendChild: () => {},
+      removeChild: () => {},
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      querySelector: () => mockElement,
+      querySelectorAll: () => []
+    };
+
+    global.document = {
+      createElement: (tag) => {
+        if (tag === 'canvas') return mockCanvas;
+        return { ...mockElement };
+      },
+      createElementNS: (ns, tag) => {
+        if (tag === 'canvas') return mockCanvas;
+        return { ...mockElement };
+      },
+      getElementById: () => mockElement,
+      querySelector: () => mockElement,
+      querySelectorAll: () => []
+    };
+
+    global.window = {
+      devicePixelRatio: 1,
+      innerWidth: 800,
+      innerHeight: 600,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      localStorage: { getItem: () => null, setItem: () => {} }
+    };
+  }
+
+  test('CameraPose.prototype.getTransformMatrix() and focalLength actively calculate spatial alignment', () => {
+    let getTransformMatrixCalled = false;
+    const pose = new CameraPose({ perspective: 'drone-aerial', focalLength: 50.0 });
+    const originalGetTransformMatrix = pose.getTransformMatrix;
+    pose.getTransformMatrix = function() {
+      getTransformMatrixCalled = true;
+      return originalGetTransformMatrix.call(this);
+    };
+
+    const baseScene = generatePeoriaRiverfrontScene();
+    const aligned = alignSpatialSplatPoints(baseScene, pose);
+
+    assert.ok(getTransformMatrixCalled, 'getTransformMatrix must be invoked during alignSpatialSplatPoints');
+    assert.strictEqual(pose.focalLength, 50.0);
+    assert.ok(aligned.splatData.positions.length > 0);
+  });
+
+  test('UIController.prototype.showAlertModal() triggers on critical error and clientErrorTranslationMiddleware wraps promise', async () => {
+    mockDOMEnvironment();
+
+    const rawPromise = Promise.reject(new Error('ECONNREFUSED 502'));
+    try {
+      await clientErrorTranslationMiddleware(rawPromise);
+      assert.fail('Should have rejected');
+    } catch (translatedErr) {
+      assert.strictEqual(translatedErr.title, 'Connection Unavailable');
+      assert.ok(translatedErr.isTranslated);
+    }
+
+    let alertModalCalled = false;
+    let modalTitle = '', modalMessage = '', modalRecovery = '';
+
+    const mockApp = {
+      envEngine: { weather: { temperature: 72, winterIce: 0, preset: 'clear' }, setWeather: () => {} }
+    };
+    const { UIController } = require('../src/js/uiController');
+    const controller = new UIController(mockApp);
+
+    controller.showAlertModal = (title, message, recoveryAction) => {
+      alertModalCalled = true;
+      modalTitle = title;
+      modalMessage = message;
+      modalRecovery = recoveryAction;
+    };
+
+    controller.handleError(new Error('ERR_CONN_REFUSED_502'), { isCritical: true });
+
+    assert.ok(alertModalCalled, 'showAlertModal must be launched on critical backend error');
+    assert.strictEqual(modalTitle, 'Connection Unavailable');
+    assert.ok(modalRecovery.length > 0);
+  });
+
+  test('GaussianSplatRenderer constructs and updates riverIceOverlay, bridgeLightsGroup, skyMesh, and sortedIndices', () => {
+    mockDOMEnvironment();
+
+    const container = { clientWidth: 800, clientHeight: 600, innerHTML: '', appendChild: () => {} };
+    const renderer = new GaussianSplatRenderer(container);
+
+    assert.ok(renderer.skyMesh, 'skyMesh must be created and added to scene');
+    assert.ok(renderer.bridgeLightsGroup, 'bridgeLightsGroup must be created and added to scene');
+    assert.ok(renderer.riverIceOverlay, 'riverIceOverlay must be created and added to scene');
+
+    const baseScene = generatePeoriaRiverfrontScene();
+    renderer.loadSplatData(baseScene);
+
+    assert.ok(renderer.sortedIndices, 'sortedIndices must be populated when splats are loaded/sorted');
+    assert.strictEqual(renderer.sortedIndices.length, baseScene.positions.length / 3);
+
+    renderer.render(0.016);
+    assert.ok(renderer.sortedIndices, 'sortedIndices must remain actively updated in render loop');
+  });
+
+  test('EnvironmentEngine applies windSpeed to particle movement and TemporalDelta contains timestamp', () => {
+    mockDOMEnvironment();
+
+    const container = { clientWidth: 800, clientHeight: 600, appendChild: () => {} };
+    const env = new EnvironmentEngine(null, container);
+
+    env.setWeather({ preset: 'rain', windSpeed: 25.0 });
+    assert.strictEqual(env.weather.windSpeed, 25.0);
+
+    const initialX = env.particles[0].x;
+    env.update(0.016);
+    const updatedX = env.particles[0].x;
+
+    assert.notStrictEqual(initialX, updatedX, 'Particles x coordinate must move according to velocity and windSpeed');
+
+    const baseScene = generatePeoriaRiverfrontScene();
+    const delta = analyzeTemporalDelta(baseScene);
+    assert.ok(delta.timestamp, 'TemporalDelta must contain timestamp string');
+    assert.ok(new Date(delta.timestamp).getTime() > 0, 'Timestamp must be valid date');
+  });
+
+  test('ImageStitcher and youtubePipelineBackend expose pairwiseMatches statistics', async () => {
+    const testDir = path.join(os.tmpdir(), 'test_peoria_matches_' + Date.now());
+    const res = await extractFrames('https://www.youtube.com/watch?v=5Qe07gFsTx4', testDir, { frameCount: 3 });
+
+    const stitched = ImageStitcher.stitchKeyframesTo3DSplat(res.framePaths);
+    assert.ok(Array.isArray(stitched.pairwiseMatches), 'pairwiseMatches must be exposed in ImageStitcher result');
+
+    const videoResult = await processYouTubePeoriaVideo('https://www.youtube.com/watch?v=5Qe07gFsTx4', { frameBufferDir: testDir, frameCount: 3 });
+    assert.ok(Array.isArray(videoResult.pairwiseMatches), 'pairwiseMatches must be exposed in processYouTubePeoriaVideo result');
+
+    fs.rmSync(testDir, { recursive: true, force: true });
+  });
+});
+
