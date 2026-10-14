@@ -1,22 +1,27 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const {
+import {
   generatePeoriaRiverfrontScene,
   generatePeoriaSkylineScene,
   generateGrandviewDriveScene
-} = require('../src/js/peoriaScenes');
+} from '../src/js/peoriaScenes.js';
 
-const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
-const { extractFrames } = require('../scripts/extractFrames');
-const { ImageStitcher } = require('../src/js/imageStitcher');
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+import { extractFrames } from '../scripts/extractFrames.js';
+import { ImageStitcher } from '../src/js/imageStitcher.js';
 
-const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
-const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
-const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
+import { estimateCameraPose, alignSpatialSplatPoints } from '../src/js/registrationEngine.js';
+import { analyzeTemporalDelta, applyTemporalDeltaToSplats } from '../src/js/temporalDeltaAnalyzer.js';
+import { IncrementalSplatModel } from '../src/js/incrementalIngestionEngine.js';
+import { UIController } from '../src/js/uiController.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('Peoria 3D Gaussian Splat Landmark Scenes', () => {
   test('generatePeoriaRiverfrontScene produces valid 3D Gaussian Splat dataset', () => {
@@ -384,8 +389,6 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
       },
       querySelectorAll: (sel) => []
     };
-
-    const { UIController } = require('../src/js/uiController');
 
     const mockApp = {
       envEngine: {

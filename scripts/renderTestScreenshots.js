@@ -4,10 +4,10 @@
  * clear day, winter river ice, night city lighting, and dashboard overlay.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { generatePeoriaRiverfrontScene, generatePeoriaSkylineScene } = require('../src/js/peoriaScenes');
-const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
+import fs from 'node:fs';
+import path from 'node:path';
+import { generatePeoriaRiverfrontScene, generatePeoriaSkylineScene } from '../src/js/peoriaScenes.js';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
 
 // Pure JS BMP/PNG Image Writer for rendering 3D scenes without external GPU drivers
 function createBMPBuffer(width, height, getPixelRGB) {
