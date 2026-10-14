@@ -23,11 +23,64 @@ export class UIController {
     this.selectedPose = this.settings.cameraPose;
     this.selectedSeason = this.settings.selectedSeason;
 
+    this.init();
+  }
+
+  init() {
     this.initDOM();
     this.loadSecondarySettings();
     this.bindEvents();
     this.applySettingsToEngine();
     this.updateVisualIndicators();
+    return this.initWeatherSync();
+  }
+
+  async initWeatherSync() {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getPeoriaWeather === 'function') {
+      try {
+        const res = await window.electronAPI.getPeoriaWeather();
+        if (res) {
+          const w = res.success && res.weather ? res.weather : res.fallback;
+          if (w) {
+            this.applyLiveWeather(w);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch Peoria weather via IPC:', err);
+      }
+    }
+  }
+
+  mapWeatherCodeToPreset(code) {
+    if (code === undefined || code === null) return 'clear';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow';
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) return 'rain';
+    if ([45, 48].includes(code)) return 'fog';
+    return 'clear';
+  }
+
+  applyLiveWeather(w) {
+    const code = w.weathercode !== undefined ? w.weathercode : w.weather_code;
+    const preset = w.preset || this.mapWeatherCodeToPreset(code);
+    const temp = w.temperature !== undefined ? Math.round(w.temperature) : undefined;
+
+    if (this.app && this.app.envEngine) {
+      const weatherParams = { preset };
+      if (temp !== undefined) {
+        weatherParams.temp = temp;
+      }
+      this.app.envEngine.setWeather(weatherParams);
+
+      this.settings.temperature = this.app.envEngine.weather.temperature;
+      this.settings.winterIce = this.app.envEngine.weather.winterIce;
+
+      if (this.sliderTemp) this.sliderTemp.value = this.settings.temperature;
+      if (this.sliderIce) this.sliderIce.value = this.settings.winterIce;
+
+      this.updateTempDisplay(this.settings.temperature);
+      this.updateIceDisplay(this.settings.winterIce);
+      this.updateVisualIndicators();
+    }
   }
 
   initDOM() {
@@ -342,26 +395,36 @@ export class UIController {
 
     // Electron IPC Listeners
     if (typeof window !== 'undefined' && window.electronAPI) {
-      window.electronAPI.onSwitchScene((scene) => this.switchScene(scene));
-      window.electronAPI.onSetTimeMode((mode) => {
-        if (mode === 'auto') {
-          this.app.envEngine.autoSyncClock = true;
-          this.settings.autoSyncClock = true;
-          const syncBtn = document.getElementById('btn-toggle-autosync');
-          if (syncBtn) syncBtn.classList.add('active');
-          this.saveSecondarySettings();
-          this.updateVisualIndicators();
-        }
-      });
-      window.electronAPI.onSetTime((hour) => this.setTime(hour));
-      window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
-      window.electronAPI.onDesktopModeChanged((isDesktop) => {
-        const badge = document.getElementById('mode-badge');
-        if (badge) {
-          badge.textContent = isDesktop ? 'WALLPAPER' : 'WINDOW';
-          badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
-        }
-      });
+      if (typeof window.electronAPI.onSwitchScene === 'function') {
+        window.electronAPI.onSwitchScene((scene) => this.switchScene(scene));
+      }
+      if (typeof window.electronAPI.onSetTimeMode === 'function') {
+        window.electronAPI.onSetTimeMode((mode) => {
+          if (mode === 'auto') {
+            this.app.envEngine.autoSyncClock = true;
+            this.settings.autoSyncClock = true;
+            const syncBtn = document.getElementById('btn-toggle-autosync');
+            if (syncBtn) syncBtn.classList.add('active');
+            this.saveSecondarySettings();
+            this.updateVisualIndicators();
+          }
+        });
+      }
+      if (typeof window.electronAPI.onSetTime === 'function') {
+        window.electronAPI.onSetTime((hour) => this.setTime(hour));
+      }
+      if (typeof window.electronAPI.onSetWeather === 'function') {
+        window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      }
+      if (typeof window.electronAPI.onDesktopModeChanged === 'function') {
+        window.electronAPI.onDesktopModeChanged((isDesktop) => {
+          const badge = document.getElementById('mode-badge');
+          if (badge) {
+            badge.textContent = isDesktop ? 'WALLPAPER' : 'WINDOW';
+            badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
+          }
+        });
+      }
     }
   }
 
