@@ -362,6 +362,15 @@ export class UIController {
           badge.className = isDesktop ? 'badge badge-green' : 'badge badge-ice';
         }
       });
+      if (window.electronAPI.onWindowVisibilityChanged) {
+        window.electronAPI.onWindowVisibilityChanged((isVisible) => {
+          const badge = document.getElementById('render-status-badge');
+          if (badge) {
+            badge.textContent = isVisible ? '60 FPS ACTIVE' : '1 FPS THROTTLED';
+            badge.className = isVisible ? 'badge badge-green' : 'badge badge-warn';
+          }
+        });
+      }
     }
   }
 
