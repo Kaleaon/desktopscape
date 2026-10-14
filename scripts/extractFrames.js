@@ -9,45 +9,10 @@ const path = require('path');
 const os = require('os');
 const { exec } = require('child_process');
 const util = require('util');
+const { createBMPBuffer } = require('./utils/bmpWriter');
+const { computeSkyGradient, computeIllinoisRiver } = require('./utils/syntheticScene');
 
 const execAsync = util.promisify(exec);
-
-/**
- * Creates a 24-bit BMP image buffer.
- */
-function createBMPBuffer(width, height, pixelFn) {
-  const rowSize = Math.floor((24 * width + 31) / 32) * 4;
-  const pixelArraySize = rowSize * height;
-  const fileSize = 54 + pixelArraySize;
-  const buf = Buffer.alloc(fileSize);
-
-  // BMP Header
-  buf.write('BM', 0);
-  buf.writeUInt32LE(fileSize, 2);
-  buf.writeUInt32LE(54, 10);
-
-  // DIB Header
-  buf.writeUInt32LE(40, 14);
-  buf.writeInt32LE(width, 18);
-  buf.writeInt32LE(height, 22);
-  buf.writeUInt16LE(1, 26);
-  buf.writeUInt16LE(24, 28);
-  buf.writeUInt32LE(pixelArraySize, 34);
-
-  // Write pixels (bottom-up in BMP format)
-  for (let y = 0; y < height; y++) {
-    const rowOffset = 54 + (height - 1 - y) * rowSize;
-    for (let x = 0; x < width; x++) {
-      const { r, g, b } = pixelFn(x, y, width, height);
-      const pixelOffset = rowOffset + x * 3;
-      buf[pixelOffset] = Math.max(0, Math.min(255, Math.floor(b)));     // B
-      buf[pixelOffset + 1] = Math.max(0, Math.min(255, Math.floor(g))); // G
-      buf[pixelOffset + 2] = Math.max(0, Math.min(255, Math.floor(r))); // R
-    }
-  }
-
-  return buf;
-}
 
 /**
  * Extracts keyframe still images from YouTube video URL into frame buffer directory.
@@ -100,16 +65,9 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
       const panOffset = (f / numFrames) * 60; // 0 to 60px shift
 
       const bmpBuf = createBMPBuffer(width, height, (x, y, w, h) => {
-        // Sky gradient
         const normY = y / h;
-        let r = 80 + normY * 120;
-        let g = 140 + normY * 90;
-        let b = 220 + normY * 30;
-
-        // Illinois River at bottom
-        if (normY > 0.70) {
-          r = 20; g = 50; b = 80;
-        }
+        const riverPixel = computeIllinoisRiver(x, y, normY, w, { threshold: 0.70, preset: 'extractFrames' });
+        let { r, g, b } = riverPixel || computeSkyGradient(normY, { preset: 'extractFrames' });
 
         // Peoria Skyline Buildings with shift across frames
         const shiftedX = x + panOffset;
