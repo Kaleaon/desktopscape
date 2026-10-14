@@ -421,3 +421,124 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
   });
 });
 
+describe('IPC Weather Integration', () => {
+  test('UIController.init calls getPeoriaWeather and updates environment engine weather state', async () => {
+    let ipcCalled = false;
+    global.window = {
+      localStorage: { getItem: () => null, setItem: () => {} },
+      electronAPI: {
+        getPeoriaWeather: async () => {
+          ipcCalled = true;
+          return {
+            success: true,
+            weather: {
+              temperature: 28,
+              weathercode: 71, // Snow
+              windspeed: 10
+            }
+          };
+        }
+      }
+    };
+
+    const createdElements = {};
+    const createElementMock = (id) => ({
+      id,
+      classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      textContent: '',
+      value: '72'
+    });
+
+    global.document = {
+      getElementById: (id) => createdElements[id] || (createdElements[id] = createElementMock(id)),
+      querySelector: () => createElementMock('mock-el'),
+      querySelectorAll: () => []
+    };
+
+    let updatedWeather = null;
+    const mockApp = {
+      envEngine: {
+        weather: { temperature: 72, winterIce: 0, preset: 'clear' },
+        timeOfDay: 12,
+        autoSyncClock: false,
+        setWeather: function(w) {
+          if (w.preset) this.weather.preset = w.preset;
+          if (w.temp !== undefined) this.weather.temperature = w.temp;
+          if (w.temp <= 32) this.weather.winterIce = 0.5;
+          updatedWeather = { ...this.weather };
+        }
+      }
+    };
+
+    delete require.cache[require.resolve('../src/js/uiController')];
+    const { UIController } = require('../src/js/uiController');
+    const controller = new UIController(mockApp);
+    await controller.init();
+
+    assert.ok(ipcCalled, 'getPeoriaWeather IPC must be called during UIController initialization');
+    assert.strictEqual(updatedWeather.temperature, 28, 'Environment engine temperature must update to live IPC value (28°F)');
+    assert.strictEqual(updatedWeather.preset, 'snow', 'Weathercode 71 must map to snow preset');
+    assert.ok(updatedWeather.winterIce > 0, 'Sub-freezing live temperature must update river ice');
+  });
+
+  test('UIController handles IPC fallback seamlessly when Open-Meteo API fails or is offline', async () => {
+    let ipcCalled = false;
+    global.window = {
+      localStorage: { getItem: () => null, setItem: () => {} },
+      electronAPI: {
+        getPeoriaWeather: async () => {
+          ipcCalled = true;
+          return {
+            success: false,
+            fallback: {
+              temperature: 65,
+              weathercode: 0 // Clear
+            }
+          };
+        }
+      }
+    };
+
+    const createdElements = {};
+    const createElementMock = (id) => ({
+      id,
+      classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      textContent: '',
+      value: '72'
+    });
+
+    global.document = {
+      getElementById: (id) => createdElements[id] || (createdElements[id] = createElementMock(id)),
+      querySelector: () => createElementMock('mock-el'),
+      querySelectorAll: () => []
+    };
+
+    let updatedWeather = null;
+    const mockApp = {
+      envEngine: {
+        weather: { temperature: 72, winterIce: 0, preset: 'clear' },
+        timeOfDay: 12,
+        autoSyncClock: false,
+        setWeather: function(w) {
+          if (w.preset) this.weather.preset = w.preset;
+          if (w.temp !== undefined) this.weather.temperature = w.temp;
+          updatedWeather = { ...this.weather };
+        }
+      }
+    };
+
+    delete require.cache[require.resolve('../src/js/uiController')];
+    const { UIController } = require('../src/js/uiController');
+    const controller = new UIController(mockApp);
+    await controller.init();
+
+    assert.ok(ipcCalled, 'getPeoriaWeather IPC must be called');
+    assert.strictEqual(updatedWeather.temperature, 65, 'Environment engine must receive temperature from fallback weather');
+    assert.strictEqual(updatedWeather.preset, 'clear', 'Environment engine must receive mapped preset from fallback weather code');
+  });
+});
+
