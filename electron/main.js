@@ -1,7 +1,12 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import https from 'node:https';
+import { fileURLToPath } from 'node:url';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow = null;
 let tray = null;
@@ -22,7 +27,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: true
     },
     show: false,
     autoHideMenuBar: true,
@@ -149,7 +154,6 @@ ipcMain.handle('get-peoria-weather', async () => {
 
 ipcMain.handle('process-youtube-url', async (event, url) => {
   try {
-    const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
     const result = await processYouTubePeoriaVideo(url);
     return { success: true, result };
   } catch (err) {

@@ -51,7 +51,3 @@ export const DESIGN_TOKENS = {
     full: '9999px'
   }
 };
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { DESIGN_TOKENS };
-}
