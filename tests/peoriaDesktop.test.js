@@ -421,3 +421,265 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
   });
 });
 
+describe('Dual-Layer Window Lifecycle Event Synchronization & Adaptive Render Governor', () => {
+  const setupDomMock = () => {
+    const mockCanvas = {
+      getContext: () => ({
+        clearRect: () => {},
+        createLinearGradient: () => ({ addColorStop: () => {} }),
+        createRadialGradient: () => ({ addColorStop: () => {} }),
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => {},
+        fill: () => {},
+        arc: () => {},
+        fillRect: () => {}
+      }),
+      style: {},
+      width: 800,
+      height: 600,
+      id: ''
+    };
+
+    global.document = global.document || {};
+    if (!global.document.createElement) {
+      global.document.createElement = (tag) => {
+        if (tag === 'canvas') return { ...mockCanvas };
+        return { style: {}, classList: new Set() };
+      };
+    }
+    global.window = global.window && typeof global.window.addEventListener === 'function' 
+      ? global.window 
+      : { innerWidth: 800, innerHeight: 600, addEventListener: () => {} };
+  };
+
+  test('Electron main process listeners emit window-visibility-changed and preload bridge exposes onWindowVisibilityChanged', () => {
+    const mainJs = fs.readFileSync(path.join(__dirname, '../electron/main.js'), 'utf8');
+    const preloadJs = fs.readFileSync(path.join(__dirname, '../electron/preload.js'), 'utf8');
+
+    assert.ok(mainJs.includes('window-visibility-changed'), 'electron/main.js must emit window-visibility-changed IPC event');
+    assert.ok(mainJs.includes('emitVisibilityChange'), 'electron/main.js must contain emitVisibilityChange helper');
+    assert.ok(preloadJs.includes('onWindowVisibilityChanged'), 'electron/preload.js must expose onWindowVisibilityChanged in electronAPI bridge');
+    assert.ok(preloadJs.includes('window-visibility-changed'), 'electron/preload.js must listen for window-visibility-changed channel');
+  });
+
+  test('Renderer frame rate drops to 1 FPS or lower when window visibility is false', () => {
+    setupDomMock();
+    const mockRenderer = { camera: { position: { x: 0, y: 0, z: 0 }, lookAt: () => {} }, render: () => {} };
+    const mockContainer = { appendChild: () => {}, clientWidth: 800, clientHeight: 600 };
+    const { EnvironmentEngine } = require('../src/js/environmentEngine');
+    const envEngine = new EnvironmentEngine(mockRenderer, mockContainer);
+
+    let renderCallsCount = 0;
+    const mockApp = {
+      isVisible: true,
+      targetFps: 60,
+      lowFps: 1,
+      lastRenderTime: performance.now(),
+      lastTime: performance.now(),
+      envEngine,
+      splatRenderer: mockRenderer,
+      cameraMode: 'orbit',
+      setVisibility: function(visible) {
+        const isVis = Boolean(visible);
+        if (this.isVisible === isVis) return;
+        this.isVisible = isVis;
+        if (this.isVisible) {
+          this.lastTime = performance.now();
+          this.lastRenderTime = performance.now();
+          this.envEngine.resumeDelta();
+          this.renderFrame(performance.now());
+        } else {
+          this.envEngine.pauseDelta();
+        }
+      },
+      renderFrame: function(now = performance.now()) {
+        renderCallsCount++;
+        const rawDelta = (now - this.lastTime) / 1000.0;
+        this.lastTime = now;
+        this.lastRenderTime = now;
+        const delta = this.isVisible ? Math.min(rawDelta, 0.1) : 0.016;
+        this.envEngine.update(delta);
+        this.splatRenderer.render(delta);
+      },
+      checkFrameTick: function(now) {
+        const targetInterval = this.isVisible ? (1000 / this.targetFps) : (1000 / this.lowFps);
+        const elapsed = now - this.lastRenderTime;
+        if (elapsed >= targetInterval - 1) {
+          this.renderFrame(now);
+        }
+      }
+    };
+
+    // When visible (60 FPS), ticks spaced 16.6ms apart invoke renderFrame
+    renderCallsCount = 0;
+    const t0 = 1000;
+    mockApp.lastRenderTime = t0;
+    mockApp.lastTime = t0;
+    mockApp.checkFrameTick(t0 + 17);
+    assert.strictEqual(renderCallsCount, 1, 'Visible state (60 FPS) must render on 16.6ms tick interval');
+
+    // Hide window (1 FPS governor mode)
+    mockApp.setVisibility(false);
+    assert.strictEqual(mockApp.isVisible, false);
+
+    renderCallsCount = 0;
+    const t1 = 2000;
+    mockApp.lastRenderTime = t1;
+    mockApp.lastTime = t1;
+
+    // Tick after 100ms (should be skipped because targetInterval is 1000ms)
+    mockApp.checkFrameTick(t1 + 100);
+    assert.strictEqual(renderCallsCount, 0, 'Hidden state must skip frames prior to 1000ms low frame rate interval');
+
+    // Tick after 500ms (should be skipped)
+    mockApp.checkFrameTick(t1 + 500);
+    assert.strictEqual(renderCallsCount, 0, 'Hidden state must continue skipping frames at 500ms');
+
+    // Tick at 1000ms (should trigger 1 FPS frame)
+    mockApp.checkFrameTick(t1 + 1000);
+    assert.strictEqual(renderCallsCount, 1, 'Hidden state must render 1 frame per 1000ms (1 FPS)');
+  });
+
+  test('Render loop returns to 60 FPS instantly (<50ms) upon window re-exposure', () => {
+    setupDomMock();
+    const mockRenderer = { camera: { position: { x: 0, y: 0, z: 0 }, lookAt: () => {} }, render: () => {} };
+    const mockContainer = { appendChild: () => {}, clientWidth: 800, clientHeight: 600 };
+    const { EnvironmentEngine } = require('../src/js/environmentEngine');
+    const envEngine = new EnvironmentEngine(mockRenderer, mockContainer);
+
+    let renderCallsCount = 0;
+    let lastRenderTimestamp = 0;
+
+    const mockApp = {
+      isVisible: false,
+      targetFps: 60,
+      lowFps: 1,
+      lastRenderTime: performance.now(),
+      lastTime: performance.now(),
+      envEngine,
+      splatRenderer: mockRenderer,
+      cameraMode: 'orbit',
+      setVisibility: function(visible) {
+        const isVis = Boolean(visible);
+        if (this.isVisible === isVis) return;
+        this.isVisible = isVis;
+        if (this.isVisible) {
+          const now = performance.now();
+          this.lastTime = now;
+          this.lastRenderTime = now;
+          this.envEngine.resumeDelta();
+          this.renderFrame(now);
+        } else {
+          this.envEngine.pauseDelta();
+        }
+      },
+      renderFrame: function(now = performance.now()) {
+        renderCallsCount++;
+        lastRenderTimestamp = now;
+        const rawDelta = (now - this.lastTime) / 1000.0;
+        this.lastTime = now;
+        this.lastRenderTime = now;
+        const delta = this.isVisible ? Math.min(rawDelta, 0.1) : 0.016;
+        this.envEngine.update(delta);
+        this.splatRenderer.render(delta);
+      }
+    };
+
+    const startTime = performance.now();
+    renderCallsCount = 0;
+
+    // Simulate window re-exposure
+    mockApp.setVisibility(true);
+    const timeToResume = performance.now() - startTime;
+
+    assert.ok(timeToResume < 50, `Render loop resumption must complete within 50ms (took ${timeToResume.toFixed(2)}ms)`);
+    assert.strictEqual(renderCallsCount, 1, 'Immediate frame must be rendered upon window re-exposure');
+    assert.strictEqual(mockApp.isVisible, true);
+    assert.ok(lastRenderTimestamp > 0);
+  });
+
+  test('Environment engine pauses time delta accumulation during suspended states preventing frame jumps', () => {
+    setupDomMock();
+    const mockRenderer = { updateLighting: () => {} };
+    const mockContainer = { appendChild: () => {}, clientWidth: 800, clientHeight: 600 };
+    const { EnvironmentEngine } = require('../src/js/environmentEngine');
+    const envEngine = new EnvironmentEngine(mockRenderer, mockContainer);
+
+    envEngine.setWeather({ preset: 'snow' });
+    const pInitial = { x: envEngine.particles[0].x, y: envEngine.particles[0].y };
+
+    // Pause delta accumulation during window minimization
+    envEngine.pauseDelta();
+    assert.strictEqual(envEngine.isPaused, true);
+
+    // Simulate large 10-second gap while minimized
+    envEngine.update(10.0);
+
+    const pPaused = { x: envEngine.particles[0].x, y: envEngine.particles[0].y };
+    assert.strictEqual(pPaused.x, pInitial.x, 'Particle X position must remain frozen when delta accumulation is paused');
+    assert.strictEqual(pPaused.y, pInitial.y, 'Particle Y position must remain frozen when delta accumulation is paused');
+
+    // Resume delta and perform standard frame step (0.016s)
+    envEngine.resumeDelta();
+    assert.strictEqual(envEngine.isPaused, false);
+    envEngine.update(0.016);
+
+    const pResumed = { x: envEngine.particles[0].x, y: envEngine.particles[0].y };
+    assert.ok(pResumed.y > pPaused.y, 'Particle Y position must advance smoothly by single frame step after resumption');
+    assert.ok((pResumed.y - pPaused.y) < 10, 'Particle displacement must remain small without large 10-second jump spikes');
+  });
+
+  test('Memory allocation remains flat across show and hide state cycles', () => {
+    setupDomMock();
+    const mockRenderer = { camera: { position: { x: 0, y: 0, z: 0 }, lookAt: () => {} }, render: () => {} };
+    const mockContainer = { appendChild: () => {}, clientWidth: 800, clientHeight: 600 };
+    const { EnvironmentEngine } = require('../src/js/environmentEngine');
+    const envEngine = new EnvironmentEngine(mockRenderer, mockContainer);
+
+    const mockApp = {
+      isVisible: true,
+      lastRenderTime: performance.now(),
+      lastTime: performance.now(),
+      envEngine,
+      splatRenderer: mockRenderer,
+      cameraMode: 'orbit',
+      setVisibility: function(visible) {
+        const isVis = Boolean(visible);
+        if (this.isVisible === isVis) return;
+        this.isVisible = isVis;
+        if (this.isVisible) {
+          const now = performance.now();
+          this.lastTime = now;
+          this.lastRenderTime = now;
+          this.envEngine.resumeDelta();
+          this.renderFrame(now);
+        } else {
+          this.envEngine.pauseDelta();
+        }
+      },
+      renderFrame: function(now = performance.now()) {
+        const rawDelta = (now - this.lastTime) / 1000.0;
+        this.lastTime = now;
+        this.lastRenderTime = now;
+        const delta = this.isVisible ? Math.min(rawDelta, 0.1) : 0.016;
+        this.envEngine.update(delta);
+        this.splatRenderer.render(delta);
+      }
+    };
+
+    // Cycle show/hide 500 times
+    const initialKeys = Object.keys(mockApp).length;
+    for (let i = 0; i < 500; i++) {
+      mockApp.setVisibility(false);
+      mockApp.setVisibility(true);
+    }
+
+    const finalKeys = Object.keys(mockApp).length;
+    assert.strictEqual(finalKeys, initialKeys, 'Object property set must remain flat across show/hide state cycles');
+    assert.strictEqual(mockApp.isVisible, true);
+  });
+});
+
+

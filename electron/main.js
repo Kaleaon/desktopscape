@@ -33,7 +33,15 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    emitVisibilityChange();
   });
+
+  mainWindow.on('show', () => emitVisibilityChange());
+  mainWindow.on('hide', () => emitVisibilityChange());
+  mainWindow.on('minimize', () => emitVisibilityChange());
+  mainWindow.on('restore', () => emitVisibilityChange());
+  mainWindow.on('focus', () => emitVisibilityChange());
+  mainWindow.on('blur', () => emitVisibilityChange());
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -89,7 +97,7 @@ function createTray() {
       ]
     },
     { type: 'separator' },
-    { label: 'Show Application Dashboard', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+    { label: 'Show Application Dashboard', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); emitVisibilityChange(); } } },
     { label: 'Quit Peoria Desktopscape', click: () => app.quit() }
   ]);
 
@@ -116,6 +124,14 @@ function toggleDesktopWallpaperMode() {
     mainWindow.setSize(1280, 800);
     mainWindow.center();
     sendToWindow('desktop-mode-changed', false);
+  }
+  emitVisibilityChange();
+}
+
+function emitVisibilityChange() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const visible = Boolean(mainWindow.isVisible() && !mainWindow.isMinimized());
+    sendToWindow('window-visibility-changed', visible);
   }
 }
 
