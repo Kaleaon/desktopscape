@@ -5,6 +5,7 @@
  */
 
 import { clientErrorTranslationMiddleware } from './errorTranslationMiddleware.js';
+import { SplatDataset } from './splatDataset.js';
 
 export class YouTubePipelineClient {
   constructor(appController) {
@@ -34,13 +35,13 @@ export class YouTubePipelineClient {
 
       if (statusCallback) statusCallback('Registering view-angles & synthesizing 3D Gaussian Splats...');
       
-      const splatData = {
-        name: result.title,
-        positions: new Float32Array(result.splatData.positions),
-        scales: new Float32Array(result.splatData.scales),
-        colors: new Float32Array(result.splatData.colors),
-        rotations: new Float32Array(result.splatData.rotations)
-      };
+      const splatData = SplatDataset.fromLists(
+        result.splatData.positions,
+        result.splatData.scales,
+        result.splatData.colors,
+        result.splatData.rotations,
+        { name: result.title }
+      );
 
       return {
         title: result.title,
@@ -55,13 +56,12 @@ export class YouTubePipelineClient {
 
   generateClientFallback(youtubeUrl, options = {}) {
     const pointsCount = 30000;
-    const positions = new Float32Array(pointsCount * 3);
-    const scales = new Float32Array(pointsCount * 3);
-    const colors = new Float32Array(pointsCount * 4);
-    const rotations = new Float32Array(pointsCount * 4);
-
     const perspective = options.perspective || 'drone-aerial';
     const season = options.season || 'summer';
+    const title = `Peoria 4K Video (${perspective} | ${season})`;
+
+    const dataset = SplatDataset.allocate(pointsCount, { name: title });
+    const { positions, scales, colors, rotations } = dataset;
 
     for (let i = 0; i < pointsCount; i++) {
       const x = (Math.random() - 0.5) * 200;
@@ -96,15 +96,10 @@ export class YouTubePipelineClient {
     }
 
     return {
-      title: `Peoria 4K Video (${perspective} | ${season})`,
+      title,
       perspective,
       season,
-      splatData: {
-        positions: Array.from(positions),
-        scales: Array.from(scales),
-        colors: Array.from(colors),
-        rotations: Array.from(rotations)
-      }
+      splatData: dataset
     };
   }
 }

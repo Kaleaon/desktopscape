@@ -5,6 +5,7 @@
  */
 
 import { translateError } from './errorTranslationMiddleware.js';
+import { AsyncBoundaryManager, PANEL_TYPES, ERROR_CODES } from './asyncBoundary.js';
 
 export class UIController {
   constructor(app) {
@@ -23,11 +24,29 @@ export class UIController {
     this.selectedPose = this.settings.cameraPose;
     this.selectedSeason = this.settings.selectedSeason;
 
+    this.initBoundaryManager();
     this.initDOM();
     this.loadSecondarySettings();
     this.bindEvents();
     this.applySettingsToEngine();
     this.updateVisualIndicators();
+  }
+
+  initBoundaryManager() {
+    this.boundaryManager = new AsyncBoundaryManager({
+      onFallbackNavigate: (panelType) => {
+        if (panelType !== PANEL_TYPES.SCENES) {
+          this.switchTab('scenes');
+        } else {
+          this.switchScene('riverfront');
+        }
+      }
+    });
+
+    this.boundaryManager.registerPanel(PANEL_TYPES.SCENES, 'panel-scenes');
+    this.boundaryManager.registerPanel(PANEL_TYPES.TIME, 'panel-time');
+    this.boundaryManager.registerPanel(PANEL_TYPES.WEATHER, 'panel-weather');
+    this.boundaryManager.registerPanel(PANEL_TYPES.YOUTUBE, 'panel-youtube');
   }
 
   initDOM() {
@@ -50,6 +69,19 @@ export class UIController {
     this.statSourcesCount = document.getElementById('stat-sources-count');
     this.statPose = document.getElementById('stat-pose');
     this.statSeason = document.getElementById('stat-season');
+  }
+
+  switchTab(tabKey) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabKey}"]`);
+    if (btn) btn.classList.add('active');
+
+    const panel = document.getElementById(`panel-${tabKey}`);
+    if (panel) panel.classList.add('active');
+
+    this.closeAllDrawers();
   }
 
   loadSecondarySettings() {
@@ -175,16 +207,8 @@ export class UIController {
     // Tab Navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-
-        btn.classList.add('active');
         const target = btn.dataset.tab;
-        const panel = document.getElementById(`panel-${target}`);
-        if (panel) panel.classList.add('active');
-
-        // Close any open drawers when switching tabs
-        this.closeAllDrawers();
+        this.switchTab(target);
       });
     });
 
@@ -204,43 +228,51 @@ export class UIController {
     const btnCamTour = document.getElementById('btn-cam-tour');
     if (btnCamTour) btnCamTour.addEventListener('click', () => this.setCameraMode('tour'));
 
-    // Camera Registration Pose Selection inside Contextual Drawer
-    ['drone', 'ground', 'bluff', 'oblique'].forEach(poseKey => {
-      const btn = document.getElementById(`btn-pose-${poseKey}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('[id^="btn-pose-"]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          this.selectedPose = btn.dataset.pose;
-          this.settings.cameraPose = this.selectedPose;
-          if (this.statPose) this.statPose.textContent = btn.textContent.split(' ')[1] || this.selectedPose;
-          this.saveSecondarySettings();
-          this.updateVisualIndicators();
-        });
-      }
-    });
+    // Delegated Event Listener on #contextual-drawer for Camera Pose and Seasonal Selection Controls
+    const contextualDrawerContainer = document.getElementById('contextual-drawer') || document.getElementById('drawers-overlay');
+    if (contextualDrawerContainer) {
+      contextualDrawerContainer.addEventListener('click', (e) => {
+        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('button[data-drawer-group]') : null;
+        if (!btn) return;
 
-    // Seasonal Delta Selection inside Contextual Drawer
-    ['summer', 'autumn', 'winter', 'spring'].forEach(seasonKey => {
-      const btn = document.getElementById(`btn-season-${seasonKey}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('[id^="btn-season-"]').forEach(b => b.classList.remove('active'));
+        const group = btn.dataset.drawerGroup || btn.getAttribute('data-drawer-group');
+        const value = btn.dataset.drawerValue || btn.getAttribute('data-drawer-value');
+        if (!group || !value) return;
+
+        if (typeof e.stopPropagation === 'function') {
+          e.stopPropagation();
+        }
+
+        if (group === 'pose' || group === 'cameraPose') {
+          contextualDrawerContainer.querySelectorAll(`[data-drawer-group="${group}"]`).forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          this.selectedSeason = btn.dataset.season;
-          this.settings.selectedSeason = this.selectedSeason;
-          if (this.statSeason) this.statSeason.textContent = seasonKey.charAt(0).toUpperCase() + seasonKey.slice(1);
+          this.selectedPose = value;
+          this.settings.cameraPose = value;
+          if (this.statPose) {
+            const textParts = (btn.textContent || '').trim().split(' ');
+            this.statPose.textContent = textParts.length > 1 ? textParts.slice(1).join(' ') : value;
+          }
           this.saveSecondarySettings();
           this.updateVisualIndicators();
-        });
-      }
-    });
+        } else if (group === 'season' || group === 'selectedSeason') {
+          contextualDrawerContainer.querySelectorAll(`[data-drawer-group="${group}"]`).forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.selectedSeason = value;
+          this.settings.selectedSeason = value;
+          if (this.statSeason) {
+            this.statSeason.textContent = value.charAt(0).toUpperCase() + value.slice(1);
+          }
+          this.saveSecondarySettings();
+          this.updateVisualIndicators();
+        }
+      });
+    }
 
     // Reset Model Button
     const resetBtn = document.getElementById('btn-reset-model');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        this.app.loadScene('riverfront');
+        this.switchScene('riverfront');
         if (this.ytStatus) this.ytStatus.textContent = 'Reset base model to Peoria Riverfront.';
       });
     }
@@ -252,8 +284,7 @@ export class UIController {
         this.app.envEngine.autoSyncClock = false;
         this.settings.autoSyncClock = false;
         this.settings.timePreset = null;
-        this.app.envEngine.setTimeOfDay(hours);
-        this.updateTimeDisplay(hours);
+        this.setTime(hours);
         this.saveSecondarySettings();
         this.updateVisualIndicators();
       });
@@ -294,8 +325,10 @@ export class UIController {
       this.sliderIce.addEventListener('input', (e) => {
         const ice = parseFloat(e.target.value);
         this.settings.winterIce = ice;
-        this.app.envEngine.setWeather({ ice });
-        this.updateIceDisplay(ice);
+        this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+          this.app.envEngine.setWeather({ ice });
+          this.updateIceDisplay(ice);
+        });
         this.saveSecondarySettings();
         this.updateVisualIndicators();
       });
@@ -305,11 +338,13 @@ export class UIController {
       this.sliderTemp.addEventListener('input', (e) => {
         const temp = parseInt(e.target.value);
         this.settings.temperature = temp;
-        this.app.envEngine.setWeather({ temp });
-        this.settings.winterIce = this.app.envEngine.weather.winterIce;
-        this.updateTempDisplay(temp);
-        this.updateIceDisplay(this.app.envEngine.weather.winterIce);
-        if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
+        this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+          this.app.envEngine.setWeather({ temp });
+          this.settings.winterIce = this.app.envEngine.weather.winterIce;
+          this.updateTempDisplay(temp);
+          this.updateIceDisplay(this.app.envEngine.weather.winterIce);
+          if (this.sliderIce) this.sliderIce.value = this.app.envEngine.weather.winterIce;
+        });
         this.saveSecondarySettings();
         this.updateVisualIndicators();
       });
@@ -354,7 +389,7 @@ export class UIController {
         }
       });
       window.electronAPI.onSetTime((hour) => this.setTime(hour));
-      window.electronAPI.onSetWeather((params) => this.app.envEngine.setWeather(params));
+      window.electronAPI.onSetWeather((params) => this.setWeather(params.preset || 'clear'));
       window.electronAPI.onDesktopModeChanged((isDesktop) => {
         const badge = document.getElementById('mode-badge');
         if (badge) {
@@ -404,32 +439,38 @@ export class UIController {
     const btn = document.getElementById(`btn-scene-${sceneName}`);
     if (btn) btn.classList.add('active');
 
-    this.app.loadScene(sceneName);
-    if (this.widgetScene) this.widgetScene.textContent = sceneName.charAt(0).toUpperCase() + sceneName.slice(1);
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.SCENES, async () => {
+      await this.app.loadScene(sceneName);
+      if (this.widgetScene) this.widgetScene.textContent = sceneName.charAt(0).toUpperCase() + sceneName.slice(1);
+    });
   }
 
   setTime(hours, updatePreset = true) {
     if (this.sliderTime) this.sliderTime.value = hours;
-    this.app.envEngine.setTimeOfDay(hours);
-    this.updateTimeDisplay(hours);
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.TIME, async () => {
+      await this.app.envEngine.setTimeOfDay(hours);
+      this.updateTimeDisplay(hours);
+    });
   }
 
-  setWeather(preset) {
+  async setWeather(preset) {
     document.querySelectorAll('#panel-weather .btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`btn-wx-${preset}`);
     if (btn) btn.classList.add('active');
 
-    this.app.envEngine.setWeather({ preset });
-    this.settings.temperature = this.app.envEngine.weather.temperature;
-    this.settings.winterIce = this.app.envEngine.weather.winterIce;
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.WEATHER, async () => {
+      await this.app.envEngine.setWeather({ preset });
+      this.settings.temperature = this.app.envEngine.weather.temperature;
+      this.settings.winterIce = this.app.envEngine.weather.winterIce;
 
-    if (this.sliderTemp) this.sliderTemp.value = this.settings.temperature;
-    if (this.sliderIce) this.sliderIce.value = this.settings.winterIce;
+      if (this.sliderTemp) this.sliderTemp.value = this.settings.temperature;
+      if (this.sliderIce) this.sliderIce.value = this.settings.winterIce;
 
-    this.updateTempDisplay(this.settings.temperature);
-    this.updateIceDisplay(this.settings.winterIce);
-    this.saveSecondarySettings();
-    this.updateVisualIndicators();
+      this.updateTempDisplay(this.settings.temperature);
+      this.updateIceDisplay(this.settings.winterIce);
+      this.saveSecondarySettings();
+      this.updateVisualIndicators();
+    });
   }
 
   updateTimeDisplay(hours) {
@@ -546,8 +587,8 @@ export class UIController {
   }
 
   async processYouTubeUrl(url) {
-    if (this.ytStatus) this.ytStatus.textContent = 'Extracting spatial keyframe images and performing 3D feature stitching...';
-    try {
+    return this.boundaryManager.executePanelTask(PANEL_TYPES.YOUTUBE, async () => {
+      if (this.ytStatus) this.ytStatus.textContent = 'Extracting spatial keyframe images and performing 3D feature stitching...';
       const options = {
         perspective: this.selectedPose,
         season: this.selectedSeason,
@@ -581,9 +622,18 @@ export class UIController {
         document.querySelectorAll('#panel-scenes .btn').forEach(b => b.classList.remove('active'));
         customBtn.classList.add('active');
       }
-    } catch (err) {
-      this.handleError(err);
-    }
+    });
+  }
+
+  async simulateNetworkFailure(panelType, errorCode, errorMessage) {
+    const error = new Error(errorMessage || `Simulated network disruption on ${panelType} panel.`);
+    error.code = errorCode || ERROR_CODES.NETWORK_DISRUPTION;
+
+    return this.boundaryManager.executePanelTask(panelType, async () => {
+      throw error;
+    }).catch(() => {
+      // Intentionally caught by localized AsyncBoundary
+    });
   }
 }
 

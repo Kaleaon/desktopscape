@@ -205,7 +205,63 @@ async function renderAllScreenshots() {
     return { r, g, b };
   });
 
-  console.log('✓ All 5 Peoria Gaussian Splat screenshots rendered successfully!');
+  // 6. Layout-Matched Skeleton Placeholder View
+  saveImage('skeleton_loader.png', W, H, (x, y, w, h) => {
+    let r = 12; let g = 17; let b = 28; // App background
+
+    // Dashboard overlay container
+    if (x >= 20 && x <= 340 && y >= 20 && y <= h - 20) {
+      r = 22; g = 30; b = 46;
+
+      // Shimmer Skeleton elements matching control buttons and sliders
+      if ((y >= 90 && y <= 104 && x >= 40 && x <= 180) ||
+          (y >= 120 && y <= 158 && x >= 40 && x <= 160) ||
+          (y >= 120 && y <= 158 && x >= 170 && x <= 290) ||
+          (y >= 170 && y <= 208 && x >= 40 && x <= 160) ||
+          (y >= 170 && y <= 208 && x >= 170 && x <= 290) ||
+          (y >= 230 && y <= 254 && x >= 40 && x <= 290)) {
+        // Subtle shimmer pulse
+        const shimmer = Math.sin((x + y * 2) * 0.05) * 30;
+        r = 55 + shimmer; g = 70 + shimmer; b = 95 + shimmer;
+      }
+    }
+
+    return { r, g, b };
+  });
+
+  // 7. Localized Error Boundary Card View with Retry Button & Diagnostic Code
+  saveImage('error_boundary.png', W, H, (x, y, w, h) => {
+    let r = 12; let g = 17; let b = 28; // App background
+
+    // Dashboard overlay container
+    if (x >= 20 && x <= 340 && y >= 20 && y <= h - 20) {
+      r = 22; g = 30; b = 46;
+
+      // Localized Error Boundary Card in active panel
+      if (x >= 35 && x <= 325 && y >= 90 && y <= 310) {
+        r = 38; g = 18; b = 26; // Warning red/dark background
+
+        // Diagnostic Code Badge
+        if (x >= 50 && x <= 180 && y >= 130 && y <= 150) {
+          r = 85; g = 25; b = 40;
+        }
+
+        // Action Buttons: Active Retry Button
+        if (x >= 50 && x <= 310 && y >= 210 && y <= 245) {
+          r = 56; g = 239; b = 125; // Accent green retry button
+        }
+
+        // Fallback Navigation Button
+        if (x >= 50 && x <= 310 && y >= 255 && y <= 290) {
+          r = 45; g = 55; b = 75;
+        }
+      }
+    }
+
+    return { r, g, b };
+  });
+
+  console.log('✓ All Peoria Gaussian Splat screenshots (including skeleton loaders & error boundaries) rendered successfully!');
 }
 
 renderAllScreenshots();

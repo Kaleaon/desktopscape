@@ -4,6 +4,8 @@
  * with camera pose estimation and spatial alignment into unified 3D world coordinates.
  */
 
+import { SplatDataset } from './splatDataset.js';
+
 export class CameraPose {
   constructor(options = {}) {
     this.perspective = options.perspective || 'drone-aerial'; // 'drone-aerial', 'ground-eye', 'bluff-overlook', 'side-oblique'
@@ -162,11 +164,8 @@ export function alignSpatialSplatPoints(splatData, cameraPose, worldOffset = [0,
     cameraPose: pose,
     registeredPointsCount: count,
     alignmentConfidence: pose.confidence,
-    splatData: {
-      positions: alignedPositions,
-      scales: alignedScales,
-      colors: alignedColors,
-      rotations: alignedRotations
-    }
+    splatData: SplatDataset.fromLists(alignedPositions, alignedScales, alignedColors, alignedRotations, {
+      name: splatData.name || 'Aligned 3D Gaussian Splat Dataset'
+    })
   };
 }
