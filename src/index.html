@@ -153,7 +153,7 @@
     </div>
 
     <!-- Contextual Drawer Panels Container -->
-    <div class="contextual-drawers-overlay" id="drawers-overlay">
+    <div class="contextual-drawers-overlay" id="contextual-drawer">
       <!-- Time Contextual Drawer -->
       <div class="contextual-drawer" id="drawer-time">
         <div class="drawer-header">
@@ -214,19 +214,19 @@
           <div class="control-group">
             <label class="control-label">1. View-Angle & Camera Registration</label>
             <div class="grid-buttons">
-              <button class="btn active" id="btn-pose-drone" data-pose="drone-aerial">🚁 Drone Aerial (45°)</button>
-              <button class="btn" id="btn-pose-ground" data-pose="ground-eye">🚶 Ground Level</button>
-              <button class="btn" id="btn-pose-bluff" data-pose="bluff-overlook">🏞️ Bluff Overlook</button>
-              <button class="btn" id="btn-pose-oblique" data-pose="side-oblique">📐 Side Oblique</button>
+              <button class="btn active" id="btn-pose-drone" data-pose="drone-aerial" data-drawer-group="cameraPose" data-drawer-value="drone-aerial">🚁 Drone Aerial (45°)</button>
+              <button class="btn" id="btn-pose-ground" data-pose="ground-eye" data-drawer-group="cameraPose" data-drawer-value="ground-eye">🚶 Ground Level</button>
+              <button class="btn" id="btn-pose-bluff" data-pose="bluff-overlook" data-drawer-group="cameraPose" data-drawer-value="bluff-overlook">🏞️ Bluff Overlook</button>
+              <button class="btn" id="btn-pose-oblique" data-pose="side-oblique" data-drawer-group="cameraPose" data-drawer-value="side-oblique">📐 Side Oblique</button>
             </div>
           </div>
           <div class="control-group" style="margin-top: 12px;">
             <label class="control-label">2. Temporal Change & Season Delta</label>
             <div class="grid-buttons">
-              <button class="btn active" id="btn-season-summer" data-season="summer">🌿 Summer Green</button>
-              <button class="btn" id="btn-season-autumn" data-season="autumn">🍁 Autumn Gold</button>
-              <button class="btn" id="btn-season-winter" data-season="winter">🧊 Winter Ice</button>
-              <button class="btn" id="btn-season-spring" data-season="spring">🌸 Spring Bloom</button>
+              <button class="btn active" id="btn-season-summer" data-season="summer" data-drawer-group="selectedSeason" data-drawer-value="summer">🌿 Summer Green</button>
+              <button class="btn" id="btn-season-autumn" data-season="autumn" data-drawer-group="selectedSeason" data-drawer-value="autumn">🍁 Autumn Gold</button>
+              <button class="btn" id="btn-season-winter" data-season="winter" data-drawer-group="selectedSeason" data-drawer-value="winter">🧊 Winter Ice</button>
+              <button class="btn" id="btn-season-spring" data-season="spring" data-drawer-group="selectedSeason" data-drawer-value="spring">🌸 Spring Bloom</button>
             </div>
           </div>
         </div>

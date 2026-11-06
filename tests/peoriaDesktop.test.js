@@ -10,6 +10,7 @@ const {
   generateGrandviewDriveScene
 } = require('../src/js/peoriaScenes');
 
+const { SplatDataset } = require('../src/js/splatDataset');
 const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
 const { extractFrames } = require('../scripts/extractFrames');
 const { ImageStitcher } = require('../src/js/imageStitcher');
@@ -17,6 +18,57 @@ const { ImageStitcher } = require('../src/js/imageStitcher');
 const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
 const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
 const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
+const { GaussianSplatRenderer } = require('../src/js/splatRenderer');
+
+describe('SplatDataset Domain Class & Encapsulation', () => {
+  test('SplatDataset.allocate creates valid typed array dataset and validates buffers', () => {
+    const dataset = SplatDataset.allocate(100, { name: 'Test Dataset' });
+    assert.strictEqual(dataset.name, 'Test Dataset');
+    assert.strictEqual(dataset.count, 100);
+    assert.strictEqual(dataset.pointsCount, 100);
+    assert.strictEqual(dataset.positions.length, 300);
+    assert.strictEqual(dataset.scales.length, 300);
+    assert.strictEqual(dataset.colors.length, 400);
+    assert.strictEqual(dataset.rotations.length, 400);
+    assert.ok(dataset instanceof SplatDataset);
+  });
+
+  test('SplatDataset.fromLists constructs dataset from standard lists or Float32Arrays', () => {
+    const pos = [0, 1, 2];
+    const scales = [1, 1, 1];
+    const colors = [1, 0, 0, 1];
+    const rotations = [0, 0, 0, 1];
+
+    const dataset = SplatDataset.fromLists(pos, scales, colors, rotations, { name: 'Custom List' });
+    assert.ok(dataset.positions instanceof Float32Array);
+    assert.strictEqual(dataset.count, 1);
+    assert.strictEqual(dataset.name, 'Custom List');
+  });
+
+  test('SplatDataset validates mismatched buffer lengths', () => {
+    assert.throws(() => {
+      new SplatDataset(
+        new Float32Array(9),
+        new Float32Array(9),
+        new Float32Array(8), // Invalid color count for 3 points
+        new Float32Array(12)
+      );
+    }, /Invalid SplatDataset buffer lengths/);
+  });
+
+  test('Scene generators and pipeline engines return SplatDataset instances', () => {
+    const riverfront = generatePeoriaRiverfrontScene();
+    assert.ok(riverfront instanceof SplatDataset, 'generatePeoriaRiverfrontScene must return SplatDataset instance');
+
+    const model = new IncrementalSplatModel(riverfront);
+    const fused = model.getSplatData();
+    assert.ok(fused instanceof SplatDataset, 'IncrementalSplatModel.getSplatData must return SplatDataset instance');
+
+    const pose = estimateCameraPose({ perspective: 'drone-aerial' });
+    const aligned = alignSpatialSplatPoints(riverfront, pose);
+    assert.ok(aligned.splatData instanceof SplatDataset, 'alignSpatialSplatPoints must return SplatDataset instance');
+  });
+});
 
 describe('Peoria 3D Gaussian Splat Landmark Scenes', () => {
   test('generatePeoriaRiverfrontScene produces valid 3D Gaussian Splat dataset', () => {
@@ -418,6 +470,9 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
     const btnDrawerWeather = global.document.getElementById('btn-drawer-weather');
     assert.ok(dotWeather.classList.contains('active'), 'Active dot indicator must activate when non-default secondary temperature setting is set');
     assert.ok(btnDrawerWeather.classList.contains('has-active-settings'), 'Drawer button must highlight when non-default secondary settings are active');
+
+    delete global.window;
+    delete global.document;
   });
 });
 
@@ -481,6 +536,9 @@ describe('IPC Weather Integration', () => {
     assert.strictEqual(updatedWeather.temperature, 28, 'Environment engine temperature must update to live IPC value (28°F)');
     assert.strictEqual(updatedWeather.preset, 'snow', 'Weathercode 71 must map to snow preset');
     assert.ok(updatedWeather.winterIce > 0, 'Sub-freezing live temperature must update river ice');
+
+    delete global.window;
+    delete global.document;
   });
 
   test('UIController handles IPC fallback seamlessly when Open-Meteo API fails or is offline', async () => {
@@ -539,6 +597,115 @@ describe('IPC Weather Integration', () => {
     assert.ok(ipcCalled, 'getPeoriaWeather IPC must be called');
     assert.strictEqual(updatedWeather.temperature, 65, 'Environment engine must receive temperature from fallback weather');
     assert.strictEqual(updatedWeather.preset, 'clear', 'Environment engine must receive mapped preset from fallback weather code');
+
+    delete global.window;
+    delete global.document;
   });
 });
 
+describe('Pre-allocated Depth Sorting Buffer Pooling', () => {
+  test('Renderer initializes persistent buffer properties', () => {
+    const renderer = new GaussianSplatRenderer();
+    assert.ok(renderer.distances instanceof Float32Array, 'distances must be Float32Array');
+    assert.ok(renderer.indices instanceof Int32Array, 'indices must be Int32Array');
+    assert.ok(renderer.sortedPos instanceof Float32Array, 'sortedPos must be Float32Array');
+    assert.ok(renderer.sortedScales instanceof Float32Array, 'sortedScales must be Float32Array');
+    assert.ok(renderer.sortedColors instanceof Float32Array, 'sortedColors must be Float32Array');
+    assert.ok(renderer.sortedRotations instanceof Float32Array, 'sortedRotations must be Float32Array');
+  });
+
+  test('Depth sorting reuses persistent buffers without new allocations during camera movement', () => {
+    const renderer = new GaussianSplatRenderer();
+    const scene = generatePeoriaRiverfrontScene();
+    renderer.loadSplatData(scene);
+
+    const refDistances = renderer.distances;
+    const refIndices = renderer.indices;
+    const refSortedPos = renderer.sortedPos;
+    const refSortedScales = renderer.sortedScales;
+    const refSortedColors = renderer.sortedColors;
+    const refSortedRotations = renderer.sortedRotations;
+
+    // Simulate 50 frames of camera navigation
+    for (let frame = 0; frame < 50; frame++) {
+      renderer.camera.position.x = Math.sin(frame * 0.1) * 100;
+      renderer.camera.position.z = Math.cos(frame * 0.1) * 100;
+      renderer.sortSplats();
+
+      assert.strictEqual(renderer.distances, refDistances, 'distances buffer reference must remain constant');
+      assert.strictEqual(renderer.indices, refIndices, 'indices buffer reference must remain constant');
+      assert.strictEqual(renderer.sortedPos, refSortedPos, 'sortedPos buffer reference must remain constant');
+      assert.strictEqual(renderer.sortedScales, refSortedScales, 'sortedScales buffer reference must remain constant');
+      assert.strictEqual(renderer.sortedColors, refSortedColors, 'sortedColors buffer reference must remain constant');
+      assert.strictEqual(renderer.sortedRotations, refSortedRotations, 'sortedRotations buffer reference must remain constant');
+    }
+  });
+
+  test('Persistent buffers automatically resize when splat count increases or decreases', () => {
+    const renderer = new GaussianSplatRenderer();
+
+    // Initial scene with 100 splats
+    const smallScene = {
+      positions: new Float32Array(100 * 3),
+      scales: new Float32Array(100 * 3),
+      colors: new Float32Array(100 * 4),
+      rotations: new Float32Array(100 * 4)
+    };
+    renderer.loadSplatData(smallScene);
+    assert.strictEqual(renderer.distances.length, 100);
+    assert.strictEqual(renderer.sortedPos.length, 300);
+
+    // Switch to larger scene with 500 splats
+    const largeScene = {
+      positions: new Float32Array(500 * 3),
+      scales: new Float32Array(500 * 3),
+      colors: new Float32Array(500 * 4),
+      rotations: new Float32Array(500 * 4)
+    };
+    renderer.loadSplatData(largeScene);
+    assert.strictEqual(renderer.distances.length, 500, 'Buffers must automatically expand for larger splat dataset');
+    assert.strictEqual(renderer.sortedPos.length, 1500);
+
+    // Switch back to smaller scene with 50 splats
+    const tinyScene = {
+      positions: new Float32Array(50 * 3),
+      scales: new Float32Array(50 * 3),
+      colors: new Float32Array(50 * 4),
+      rotations: new Float32Array(50 * 4)
+    };
+    renderer.loadSplatData(tinyScene);
+    assert.strictEqual(renderer.distances.length, 50, 'Buffers must scale down to fit smaller scene without excess retained memory');
+    assert.strictEqual(renderer.sortedPos.length, 150);
+  });
+
+  test('Depth sorting preserves correct back-to-front depth ordering relative to camera', () => {
+    const renderer = new GaussianSplatRenderer();
+    renderer.camera.position.set(0, 0, 0);
+
+    // 3 splat points at z = 10, z = 50, z = 20
+    const positions = new Float32Array([
+      0, 0, 10,
+      0, 0, 50,
+      0, 0, 20
+    ]);
+    const scales = new Float32Array(9);
+    const colors = new Float32Array([
+      1, 0, 0, 1,
+      0, 1, 0, 1,
+      0, 0, 1, 1
+    ]);
+    const rotations = new Float32Array(12);
+
+    renderer.loadSplatData({ positions, scales, colors, rotations });
+
+    // Expect indices sorted descending by squared distance to camera (0,0,0):
+    // Point 1 (dz=50, dist=2500) -> Point 2 (dz=20, dist=400) -> Point 0 (dz=10, dist=100)
+    assert.strictEqual(renderer.indices[0], 1, 'Farthest point (index 1) must be sorted first');
+    assert.strictEqual(renderer.indices[1], 2, 'Middle point (index 2) must be sorted second');
+    assert.strictEqual(renderer.indices[2], 0, 'Closest point (index 0) must be sorted last');
+
+    // Verify sortedColors matches the back-to-front color order
+    assert.strictEqual(renderer.sortedColors[0], 0, 'First sorted color R should be 0');
+    assert.strictEqual(renderer.sortedColors[1], 1, 'First sorted color G should be 1 (green from point 1)');
+  });
+});
