@@ -7,15 +7,41 @@ import * as THREE from 'three';
  */
 export class GaussianSplatRenderer {
   constructor(containerElement) {
-    this.container = containerElement;
+    this.container = containerElement || { clientWidth: 800, clientHeight: 600, innerHTML: '', appendChild: () => {} };
+    const width = (this.container && this.container.clientWidth) || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const height = (this.container && this.container.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 600);
+
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
+
+    try {
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    } catch (e) {
+      this.renderer = {
+        setSize: () => {},
+        setPixelRatio: () => {},
+        toneMapping: 0,
+        toneMappingExposure: 1.0,
+        domElement: { style: {} },
+        render: () => {}
+      };
+    }
 
     this.splatMesh = null;
     this.splatData = null;
     this.splatCount = 0;
     this.sortedIndices = null;
+
+    // Persistent TypedArray Buffer Pool for depth sorting
+    this.distances = new Float32Array(0);
+    this.indices = new Int32Array(0);
+    this.sortedPos = new Float32Array(0);
+    this.sortedScales = new Float32Array(0);
+    this.sortedColors = new Float32Array(0);
+    this.sortedRotations = new Float32Array(0);
+
+    // Reuse comparator arrow function to avoid allocation during sorting passes
+    this._sortComparator = (a, b) => this.distances[b] - this.distances[a];
 
     // Off-thread Web Worker depth sorting state
     this.worker = null;
@@ -81,14 +107,24 @@ export class GaussianSplatRenderer {
   }
 
   init() {
-    this.renderer.setSize(this.container.clientWidth || window.innerWidth, this.container.clientHeight || window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    const width = (this.container && this.container.clientWidth) || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const height = (this.container && this.container.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 600);
+    const devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
+
+    if (this.renderer && typeof this.renderer.setSize === 'function') {
+      this.renderer.setSize(width, height);
+      this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.0;
+    }
     
     // Clear existing canvas if re-initializing
-    this.container.innerHTML = '';
-    this.container.appendChild(this.renderer.domElement);
+    if (this.container) {
+      this.container.innerHTML = '';
+      if (this.renderer && this.renderer.domElement && typeof this.container.appendChild === 'function') {
+        this.container.appendChild(this.renderer.domElement);
+      }
+    }
 
     // Initial camera placement overlooking Peoria Illinois River & Riverfront
     this.camera.position.set(0, 45, 120);
@@ -106,7 +142,9 @@ export class GaussianSplatRenderer {
     this.createIllinoisRiver();
 
     // Resize Listener
-    window.addEventListener('resize', () => this.onWindowResize());
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('resize', () => this.onWindowResize());
+    }
   }
 
   createIllinoisRiver() {
@@ -204,6 +242,18 @@ export class GaussianSplatRenderer {
     this.scene.add(this.riverMesh);
   }
 
+  ensureBufferCapacity(count) {
+    if (this.distances && this.distances.length === count) {
+      return;
+    }
+    this.distances = new Float32Array(count);
+    this.indices = new Int32Array(count);
+    this.sortedPos = new Float32Array(count * 3);
+    this.sortedScales = new Float32Array(count * 3);
+    this.sortedColors = new Float32Array(count * 4);
+    this.sortedRotations = new Float32Array(count * 4);
+  }
+
   loadSplatData(splatData) {
     if (this.splatMesh) {
       this.scene.remove(this.splatMesh);
@@ -211,13 +261,21 @@ export class GaussianSplatRenderer {
       this.splatMesh.material.dispose();
     }
 
-    this.splatData = splatData;
     const positions = splatData.positions instanceof Float32Array ? splatData.positions : new Float32Array(splatData.positions);
     const scales = splatData.scales instanceof Float32Array ? splatData.scales : new Float32Array(splatData.scales);
     const colors = splatData.colors instanceof Float32Array ? splatData.colors : new Float32Array(splatData.colors);
     const rotations = splatData.rotations instanceof Float32Array ? splatData.rotations : new Float32Array(splatData.rotations);
 
+    this.splatData = {
+      ...splatData,
+      positions,
+      scales,
+      colors,
+      rotations
+    };
     this.splatCount = positions.length / 3;
+
+    this.ensureBufferCapacity(this.splatCount);
 
     const geometry = new THREE.InstancedBufferGeometry();
     
@@ -374,11 +432,11 @@ export class GaussianSplatRenderer {
     if (!this.splatData || !this.splatMesh || !sortedIndices) return;
 
     const count = this.splatCount;
-    if (!this.sortedPos || this.sortedPos.length !== count * 3) {
-      this.sortedPos = new Float32Array(count * 3);
-      this.sortedScales = new Float32Array(count * 3);
-      this.sortedColors = new Float32Array(count * 4);
-      this.sortedRotations = new Float32Array(count * 4);
+    this.ensureBufferCapacity(count);
+
+    this.sortedIndices = sortedIndices;
+    if (this.indices !== sortedIndices && sortedIndices.length === this.indices.length) {
+      this.indices.set(sortedIndices);
     }
 
     const pos = this.splatData.positions;
@@ -386,41 +444,48 @@ export class GaussianSplatRenderer {
     const colors = this.splatData.colors;
     const rotations = this.splatData.rotations;
 
+    const sortedPos = this.sortedPos;
+    const sortedScales = this.sortedScales;
+    const sortedColors = this.sortedColors;
+    const sortedRotations = this.sortedRotations;
+
     for (let i = 0; i < count; i++) {
       const origIdx = sortedIndices[i];
+      const i3 = i * 3;
+      const orig3 = origIdx * 3;
+      const i4 = i * 4;
+      const orig4 = origIdx * 4;
 
-      this.sortedPos[i * 3]     = pos[origIdx * 3];
-      this.sortedPos[i * 3 + 1] = pos[origIdx * 3 + 1];
-      this.sortedPos[i * 3 + 2] = pos[origIdx * 3 + 2];
+      sortedPos[i3] = pos[orig3];
+      sortedPos[i3 + 1] = pos[orig3 + 1];
+      sortedPos[i3 + 2] = pos[orig3 + 2];
 
-      this.sortedScales[i * 3]     = scales[origIdx * 3];
-      this.sortedScales[i * 3 + 1] = scales[origIdx * 3 + 1];
-      this.sortedScales[i * 3 + 2] = scales[origIdx * 3 + 2];
+      sortedScales[i3] = scales[orig3];
+      sortedScales[i3 + 1] = scales[orig3 + 1];
+      sortedScales[i3 + 2] = scales[orig3 + 2];
 
-      this.sortedColors[i * 4]     = colors[origIdx * 4];
-      this.sortedColors[i * 4 + 1] = colors[origIdx * 4 + 1];
-      this.sortedColors[i * 4 + 2] = colors[origIdx * 4 + 2];
-      this.sortedColors[i * 4 + 3] = colors[origIdx * 4 + 3];
+      sortedColors[i4] = colors[orig4];
+      sortedColors[i4 + 1] = colors[orig4 + 1];
+      sortedColors[i4 + 2] = colors[orig4 + 2];
+      sortedColors[i4 + 3] = colors[orig4 + 3];
 
-      this.sortedRotations[i * 4]     = rotations[origIdx * 4];
-      this.sortedRotations[i * 4 + 1] = rotations[origIdx * 4 + 1];
-      this.sortedRotations[i * 4 + 2] = rotations[origIdx * 4 + 2];
-      this.sortedRotations[i * 4 + 3] = rotations[origIdx * 4 + 3];
+      sortedRotations[i4] = rotations[orig4];
+      sortedRotations[i4 + 1] = rotations[orig4 + 1];
+      sortedRotations[i4 + 2] = rotations[orig4 + 2];
+      sortedRotations[i4 + 3] = rotations[orig4 + 3];
     }
 
-    this.sortedIndices = sortedIndices;
-
     const geo = this.splatMesh.geometry;
-    geo.attributes.splatPosition.array.set(this.sortedPos);
+    geo.attributes.splatPosition.array.set(sortedPos);
     geo.attributes.splatPosition.needsUpdate = true;
 
-    geo.attributes.splatScale.array.set(this.sortedScales);
+    geo.attributes.splatScale.array.set(sortedScales);
     geo.attributes.splatScale.needsUpdate = true;
 
-    geo.attributes.splatColor.array.set(this.sortedColors);
+    geo.attributes.splatColor.array.set(sortedColors);
     geo.attributes.splatColor.needsUpdate = true;
 
-    geo.attributes.splatRotation.array.set(this.sortedRotations);
+    geo.attributes.splatRotation.array.set(sortedRotations);
     geo.attributes.splatRotation.needsUpdate = true;
   }
 
@@ -428,23 +493,28 @@ export class GaussianSplatRenderer {
     if (!this.splatData || !this.splatMesh) return;
 
     const count = this.splatCount;
+    if (count === 0) return;
+
+    this.ensureBufferCapacity(count);
+
     const pos = this.splatData.positions;
     const camX = this.camera.position.x;
     const camY = this.camera.position.y;
     const camZ = this.camera.position.z;
 
-    const distances = new Float32Array(count);
-    const indices = new Int32Array(count);
+    const distances = this.distances;
+    const indices = this.indices;
 
     for (let i = 0; i < count; i++) {
       indices[i] = i;
-      const dx = pos[i * 3] - camX;
-      const dy = pos[i * 3 + 1] - camY;
-      const dz = pos[i * 3 + 2] - camZ;
+      const i3 = i * 3;
+      const dx = pos[i3] - camX;
+      const dy = pos[i3 + 1] - camY;
+      const dz = pos[i3 + 2] - camZ;
       distances[i] = dx * dx + dy * dy + dz * dz;
     }
 
-    indices.sort((a, b) => distances[b] - distances[a]);
+    indices.sort(this._sortComparator);
     this.updateInstancedAttributes(indices);
   }
 
@@ -514,4 +584,8 @@ export class GaussianSplatRenderer {
 
     this.renderer.render(this.scene, this.camera);
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { GaussianSplatRenderer };
 }
