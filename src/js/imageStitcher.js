@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { SplatDataset } from './splatDataset.js';
 
 class ImageStitcher {
   /**
@@ -334,12 +335,9 @@ class ImageStitcher {
       pointsCount,
       matchedKeypointsCount: totalMatchesCount,
       frameCount: totalFrames,
-      splatData: {
-        positions: Array.from(positions),
-        scales: Array.from(scales),
-        colors: Array.from(colors),
-        rotations: Array.from(rotations)
-      }
+      splatData: SplatDataset.fromLists(positions, scales, colors, rotations, {
+        name: options.title || 'Stitched 3D Gaussian Splat Dataset'
+      })
     };
   }
 }
