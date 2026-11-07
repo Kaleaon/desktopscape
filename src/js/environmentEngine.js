@@ -72,6 +72,10 @@ export class EnvironmentEngine {
       this.weather.winterIce = Math.max(0, Math.min(1, weatherParams.ice));
     }
 
+    if (weatherParams.windSpeed !== undefined) {
+      this.weather.windSpeed = Math.max(0, weatherParams.windSpeed);
+    }
+
     this.initParticles();
     this.updateLighting();
   }
@@ -211,18 +215,21 @@ export class EnvironmentEngine {
       this.ctx.fillRect(0, 0, width, height);
     }
 
-    // Render Weather Particles
+    // Render Weather Particles driven by wind speed drift
+    const windDrift = (this.weather.windSpeed || 8.5) * 0.15;
+
     this.particles.forEach(p => {
       if (p.type === 'rain') {
+        const rainDx = -(2 + windDrift);
         this.ctx.beginPath();
         this.ctx.strokeStyle = `rgba(180, 210, 245, ${p.opacity})`;
         this.ctx.lineWidth = 1.2;
         this.ctx.moveTo(p.x, p.y);
-        this.ctx.lineTo(p.x - 2, p.y + p.length);
+        this.ctx.lineTo(p.x + rainDx, p.y + p.length);
         this.ctx.stroke();
 
         p.y += p.speed;
-        p.x -= 2;
+        p.x += rainDx;
 
         if (p.y > height) {
           p.y = -p.length;
@@ -235,7 +242,7 @@ export class EnvironmentEngine {
         this.ctx.fill();
 
         p.y += p.speedY;
-        p.x += p.speedX + Math.sin(p.y * 0.02) * 0.5;
+        p.x += p.speedX + Math.sin(p.y * 0.02) * 0.5 + windDrift;
 
         if (p.y > height) {
           p.y = -p.radius;
