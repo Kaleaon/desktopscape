@@ -1,5 +1,5 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
 
 // Mock minimal DOM environment for testing AsyncBoundary in Node.js
 class MockElement {

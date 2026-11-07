@@ -4,9 +4,9 @@
  * estimates 3D spatial coordinates, and projects pixels into 3D Gaussian Splat dataset.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { SplatDataset } = require('./splatDataset');
+import fs from 'node:fs';
+import path from 'node:path';
+import { SplatDataset } from './splatDataset.js';
 
 class ImageStitcher {
   /**
@@ -342,6 +342,4 @@ class ImageStitcher {
   }
 }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { ImageStitcher };
-}
+export { ImageStitcher };

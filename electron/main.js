@@ -1,7 +1,12 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import https from 'node:https';
+import { fileURLToPath } from 'node:url';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow = null;
 let tray = null;
@@ -22,7 +27,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: true
     },
     show: false,
     autoHideMenuBar: true,
@@ -145,27 +150,53 @@ function sendToWindow(channel, data) {
 ipcMain.handle('get-peoria-weather', async () => {
   // Peoria, IL coordinates: 40.6936° N, 89.5890° W
   return new Promise((resolve) => {
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=40.6936&longitude=-89.5890&current_weather=true';
-    https.get(url, (res) => {
+    let resolved = false;
+    const safeResolve = (data) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(data);
+      }
+    };
+
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=40.6936&longitude=-89.5890&current_weather=true&temperature_unit=fahrenheit';
+    const req = https.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+      }
+
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          resolve({ success: true, weather: json.current_weather });
+          if (json && json.current_weather) {
+            safeResolve({ success: true, weather: json.current_weather });
+          } else {
+            safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+          }
         } catch (e) {
-          resolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+          safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
         }
       });
-    }).on('error', () => {
-      resolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+      res.on('error', () => {
+        safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+      });
+    });
+
+    req.on('error', () => {
+      safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
+    });
+
+    req.setTimeout(5000, () => {
+      req.destroy();
+      safeResolve({ success: false, fallback: getSimulatedPeoriaWeather() });
     });
   });
 });
 
 ipcMain.handle('process-youtube-url', async (event, url) => {
   try {
-    const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
     const result = await processYouTubePeoriaVideo(url);
     return { success: true, result };
   } catch (err) {
@@ -177,7 +208,7 @@ function getSimulatedPeoriaWeather() {
   const month = new Date().getMonth();
   const isWinter = month === 11 || month === 0 || month === 1; // Dec, Jan, Feb
   return {
-    temperature: isWinter ? -5 : 22,
+    temperature: isWinter ? 23 : 72,
     windspeed: 12.5,
     weathercode: isWinter ? 71 : 0, // 71 = Snow, 0 = Clear
     is_day: 1,

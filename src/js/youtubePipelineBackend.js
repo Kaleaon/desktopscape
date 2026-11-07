@@ -4,10 +4,10 @@
  * performs feature matching across keyframe images, and synthesizes 3D Gaussian Splat datasets.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { extractFrames } = require('../../scripts/extractFrames');
-const { ImageStitcher } = require('./imageStitcher');
+import fs from 'node:fs';
+import path from 'node:path';
+import { extractFrames } from '../../scripts/extractFrames.js';
+import { ImageStitcher } from './imageStitcher.js';
 
 async function processYouTubePeoriaVideo(youtubeUrl, options = {}) {
   if (!youtubeUrl || typeof youtubeUrl !== 'string') {
@@ -35,4 +35,4 @@ async function processYouTubePeoriaVideo(youtubeUrl, options = {}) {
   };
 }
 
-module.exports = { processYouTubePeoriaVideo };
+export { processYouTubePeoriaVideo };

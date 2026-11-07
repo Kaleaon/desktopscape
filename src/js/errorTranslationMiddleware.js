@@ -121,13 +121,3 @@ export function clientErrorTranslationMiddleware(apiPromise) {
     throw translated;
   });
 }
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    ERROR_COPY_DICTIONARY,
-    FALLBACK_ERROR_COPY,
-    containsTechnicalJargon,
-    translateError,
-    clientErrorTranslationMiddleware
-  };
-}
