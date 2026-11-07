@@ -1,24 +1,29 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const {
+import {
   generatePeoriaRiverfrontScene,
   generatePeoriaSkylineScene,
   generateGrandviewDriveScene
-} = require('../src/js/peoriaScenes');
+} from '../src/js/peoriaScenes.js';
 
-const { SplatDataset } = require('../src/js/splatDataset');
-const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
-const { extractFrames } = require('../scripts/extractFrames');
-const { ImageStitcher } = require('../src/js/imageStitcher');
+import { SplatDataset } from '../src/js/splatDataset.js';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+import { extractFrames } from '../scripts/extractFrames.js';
+import { ImageStitcher } from '../src/js/imageStitcher.js';
 
-const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
-const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
-const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
-const { GaussianSplatRenderer } = require('../src/js/splatRenderer');
+import { estimateCameraPose, alignSpatialSplatPoints } from '../src/js/registrationEngine.js';
+import { analyzeTemporalDelta, applyTemporalDeltaToSplats } from '../src/js/temporalDeltaAnalyzer.js';
+import { IncrementalSplatModel } from '../src/js/incrementalIngestionEngine.js';
+import { GaussianSplatRenderer } from '../src/js/splatRenderer.js';
+import { UIController } from '../src/js/uiController.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('SplatDataset Domain Class & Encapsulation', () => {
   test('SplatDataset.allocate creates valid typed array dataset and validates buffers', () => {
@@ -436,8 +441,6 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
       },
       querySelectorAll: (sel) => []
     };
-
-    const { UIController } = require('../src/js/uiController');
 
     const mockApp = {
       envEngine: {

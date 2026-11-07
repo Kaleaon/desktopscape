@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+import { execSync } from 'node:child_process';
 
 console.log('Running build sequence...');
 execSync('node scripts/generateAssets.js', { stdio: 'inherit' });
