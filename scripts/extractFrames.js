@@ -4,15 +4,17 @@
  * Uses ffmpeg keyframe sampling when available, or synthesizes keyframe image buffers.
  */
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { exec } = require('child_process');
-const util = require('util');
-const { createBMPBuffer } = require('./utils/bmpWriter');
-const { computeSkyGradient, computeIllinoisRiver } = require('./utils/syntheticScene');
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { createBMPBuffer } from './utils/bmpWriter.js';
+import { computeSkyGradient, computeIllinoisRiver } from './utils/syntheticScene.js';
 
-const execAsync = util.promisify(exec);
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Extracts keyframe still images from YouTube video URL into frame buffer directory.
@@ -25,7 +27,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
 
   const frameBufferDir = targetDir || path.join(os.tmpdir(), 'peoria_frame_buffer');
 
-  await fs.promises.mkdir(frameBufferDir, { recursive: true });
+  await mkdir(frameBufferDir, { recursive: true });
 
   // Extract YouTube Video ID
   const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
@@ -33,7 +35,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
 
   let hasFfmpeg = false;
   try {
-    await execAsync('ffmpeg -version');
+    await execFileAsync('ffmpeg', ['-version']);
     hasFfmpeg = true;
   } catch (e) {
     hasFfmpeg = false;
@@ -45,9 +47,16 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
     // Run ffmpeg keyframe extraction
     try {
       const outputPattern = path.join(frameBufferDir, 'frame_%04d.bmp');
-      await execAsync(`ffmpeg -y -i "${url}" -vf "select='eq(pict_type\\,I)',scale=${width}:${height}" -vsync vfr -vframes ${numFrames} "${outputPattern}"`);
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-i', url,
+        '-vf', `select='eq(pict_type\\,I)',scale=${width}:${height}`,
+        '-vsync', 'vfr',
+        '-vframes', String(numFrames),
+        outputPattern
+      ]);
 
-      const files = (await fs.promises.readdir(frameBufferDir)).filter(f => f.startsWith('frame_') && f.endsWith('.bmp'));
+      const files = (await readdir(frameBufferDir)).filter(f => f.startsWith('frame_') && f.endsWith('.bmp'));
       files.forEach(f => framePaths.push(path.join(frameBufferDir, f)));
     } catch (err) {
       // Fallback if ffmpeg network stream fails
@@ -91,7 +100,7 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
         return { r, g, b };
       });
 
-      await fs.promises.writeFile(framePath, bmpBuf);
+      await writeFile(framePath, bmpBuf);
       framePaths.push(framePath);
     }
   }
@@ -106,7 +115,10 @@ async function extractFrames(youtubeUrl = 'https://www.youtube.com/watch?v=5Qe07
 }
 
 // CLI Execution Support
-if (require.main === module) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.argv[1] && process.argv[1] === __filename) {
   const args = process.argv.slice(2);
   const targetUrl = args[0] || 'https://www.youtube.com/watch?v=5Qe07gFsTx4';
   const outDir = args[1] || path.join(__dirname, '../frame_buffer');
@@ -119,4 +131,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { extractFrames, createBMPBuffer };
+export { extractFrames, createBMPBuffer };

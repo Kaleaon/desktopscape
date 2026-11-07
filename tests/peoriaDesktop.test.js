@@ -1,27 +1,33 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const {
+import {
   generatePeoriaRiverfrontScene,
   generatePeoriaSkylineScene,
   generateGrandviewDriveScene
-} = require('../src/js/peoriaScenes');
+} from '../src/js/peoriaScenes.js';
 
-const { SplatDataset } = require('../src/js/splatDataset');
-const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
-const { extractFrames } = require('../scripts/extractFrames');
-const { ImageStitcher } = require('../src/js/imageStitcher');
+import { SplatDataset } from '../src/js/splatDataset.js';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+import { extractFrames } from '../scripts/extractFrames.js';
+import { ImageStitcher } from '../src/js/imageStitcher.js';
 
-const { createBMPBuffer } = require('../scripts/utils/bmpWriter');
-const { computeSkyGradient, computeIllinoisRiver, getSyntheticSceneBasePixel } = require('../scripts/utils/syntheticScene');
+import { createBMPBuffer } from '../scripts/utils/bmpWriter.js';
+import { computeSkyGradient, computeIllinoisRiver, getSyntheticSceneBasePixel } from '../scripts/utils/syntheticScene.js';
 
-const { estimateCameraPose, alignSpatialSplatPoints } = require('../src/js/registrationEngine');
-const { analyzeTemporalDelta, applyTemporalDeltaToSplats } = require('../src/js/temporalDeltaAnalyzer');
-const { IncrementalSplatModel } = require('../src/js/incrementalIngestionEngine');
-const { GaussianSplatRenderer } = require('../src/js/splatRenderer');
+import { estimateCameraPose, alignSpatialSplatPoints } from '../src/js/registrationEngine.js';
+import { analyzeTemporalDelta, applyTemporalDeltaToSplats } from '../src/js/temporalDeltaAnalyzer.js';
+import { IncrementalSplatModel } from '../src/js/incrementalIngestionEngine.js';
+import { GaussianSplatRenderer } from '../src/js/splatRenderer.js';
+import { UIController } from '../src/js/uiController.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 describe('SplatDataset Domain Class & Encapsulation', () => {
   test('SplatDataset.allocate creates valid typed array dataset and validates buffers', () => {
@@ -440,8 +446,6 @@ describe('Progressive Disclosure & Contextual UI Extraction', () => {
       querySelectorAll: (sel) => []
     };
 
-    const { UIController } = require('../src/js/uiController');
-
     const mockApp = {
       envEngine: {
         weather: { temperature: 72, winterIce: 0, preset: 'clear' },
@@ -582,6 +586,129 @@ describe('Shared BMP Encoder & Synthetic Scene Utilities', () => {
 
     assert.strictEqual(skyPixel.r, computeSkyGradient(50 / 500, 'day').r);
     assert.strictEqual(riverPixel.r, computeIllinoisRiver(100, 400, 400 / 500, 800, 'day').r);
+  });
+});
+
+describe('IPC Weather Integration', () => {
+  test('UIController.init calls getPeoriaWeather and updates environment engine weather state', async () => {
+    let ipcCalled = false;
+    global.window = {
+      localStorage: { getItem: () => null, setItem: () => {} },
+      electronAPI: {
+        getPeoriaWeather: async () => {
+          ipcCalled = true;
+          return {
+            success: true,
+            weather: {
+              temperature: 28,
+              weathercode: 71, // Snow
+              windspeed: 10
+            }
+          };
+        }
+      }
+    };
+
+    const createdElements = {};
+    const createElementMock = (id) => ({
+      id,
+      classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      textContent: '',
+      value: '72'
+    });
+
+    global.document = {
+      getElementById: (id) => createdElements[id] || (createdElements[id] = createElementMock(id)),
+      querySelector: () => createElementMock('mock-el'),
+      querySelectorAll: () => []
+    };
+
+    let updatedWeather = null;
+    const mockApp = {
+      envEngine: {
+        weather: { temperature: 72, winterIce: 0, preset: 'clear' },
+        timeOfDay: 12,
+        autoSyncClock: false,
+        setWeather: function(w) {
+          if (w.preset) this.weather.preset = w.preset;
+          if (w.temp !== undefined) this.weather.temperature = w.temp;
+          if (w.temp <= 32) this.weather.winterIce = 0.5;
+          updatedWeather = { ...this.weather };
+        }
+      }
+    };
+
+    const controller = new UIController(mockApp);
+    await controller.init();
+
+    assert.ok(ipcCalled, 'getPeoriaWeather IPC must be called during UIController initialization');
+    assert.strictEqual(updatedWeather.temperature, 28, 'Environment engine temperature must update to live IPC value (28°F)');
+    assert.strictEqual(updatedWeather.preset, 'snow', 'Weathercode 71 must map to snow preset');
+    assert.ok(updatedWeather.winterIce > 0, 'Sub-freezing live temperature must update river ice');
+
+    delete global.window;
+    delete global.document;
+  });
+
+  test('UIController handles IPC fallback seamlessly when Open-Meteo API fails or is offline', async () => {
+    let ipcCalled = false;
+    global.window = {
+      localStorage: { getItem: () => null, setItem: () => {} },
+      electronAPI: {
+        getPeoriaWeather: async () => {
+          ipcCalled = true;
+          return {
+            success: false,
+            fallback: {
+              temperature: 65,
+              weathercode: 0 // Clear
+            }
+          };
+        }
+      }
+    };
+
+    const createdElements = {};
+    const createElementMock = (id) => ({
+      id,
+      classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      textContent: '',
+      value: '72'
+    });
+
+    global.document = {
+      getElementById: (id) => createdElements[id] || (createdElements[id] = createElementMock(id)),
+      querySelector: () => createElementMock('mock-el'),
+      querySelectorAll: () => []
+    };
+
+    let updatedWeather = null;
+    const mockApp = {
+      envEngine: {
+        weather: { temperature: 72, winterIce: 0, preset: 'clear' },
+        timeOfDay: 12,
+        autoSyncClock: false,
+        setWeather: function(w) {
+          if (w.preset) this.weather.preset = w.preset;
+          if (w.temp !== undefined) this.weather.temperature = w.temp;
+          updatedWeather = { ...this.weather };
+        }
+      }
+    };
+
+    const controller = new UIController(mockApp);
+    await controller.init();
+
+    assert.ok(ipcCalled, 'getPeoriaWeather IPC must be called');
+    assert.strictEqual(updatedWeather.temperature, 65, 'Environment engine must receive temperature from fallback weather');
+    assert.strictEqual(updatedWeather.preset, 'clear', 'Environment engine must receive mapped preset from fallback weather code');
+
+    delete global.window;
+    delete global.document;
   });
 });
 

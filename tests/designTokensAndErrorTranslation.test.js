@@ -1,15 +1,19 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
-const fs = require('fs');
-const path = require('path');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const { DESIGN_TOKENS } = require('../src/js/designTokens');
-const {
+import { DESIGN_TOKENS } from '../src/js/designTokens.js';
+import {
   translateError,
   containsTechnicalJargon,
   ERROR_COPY_DICTIONARY,
   FALLBACK_ERROR_COPY
-} = require('../src/js/errorTranslationMiddleware');
+} from '../src/js/errorTranslationMiddleware.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('Centralized Design System Tokens', () => {
   test('DESIGN_TOKENS exports unified brand colors, button height variants, and component padding scale', () => {

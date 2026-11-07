@@ -45,4 +45,5 @@ function createBMPBuffer(width, height, pixelFn) {
   return buf;
 }
 
-module.exports = { createBMPBuffer };
+export { createBMPBuffer };
+export default createBMPBuffer;

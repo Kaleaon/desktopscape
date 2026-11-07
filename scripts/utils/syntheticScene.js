@@ -117,10 +117,18 @@ function getSyntheticSceneBasePixel(x, y, width, height, options = 'default') {
   return computeSkyGradient(normY, skyOpts);
 }
 
-module.exports = {
+export {
   computeSkyGradient,
   computeIllinoisRiver,
   getSyntheticSceneBasePixel,
   SKY_PRESETS,
   RIVER_PRESETS
 };
+export default {
+  computeSkyGradient,
+  computeIllinoisRiver,
+  getSyntheticSceneBasePixel,
+  SKY_PRESETS,
+  RIVER_PRESETS
+};
+

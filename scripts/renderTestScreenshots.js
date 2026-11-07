@@ -4,12 +4,13 @@
  * clear day, winter river ice, night city lighting, and dashboard overlay.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { generatePeoriaRiverfrontScene, generatePeoriaSkylineScene } = require('../src/js/peoriaScenes');
-const { processYouTubePeoriaVideo } = require('../src/js/youtubePipelineBackend');
-const { createBMPBuffer } = require('./utils/bmpWriter');
-const { computeSkyGradient, computeIllinoisRiver } = require('./utils/syntheticScene');
+import fs from 'node:fs';
+import path from 'node:path';
+import { generatePeoriaRiverfrontScene, generatePeoriaSkylineScene } from '../src/js/peoriaScenes.js';
+import { processYouTubePeoriaVideo } from '../src/js/youtubePipelineBackend.js';
+import { createBMPBuffer } from './utils/bmpWriter.js';
+import { computeSkyGradient, computeIllinoisRiver } from './utils/syntheticScene.js';
+
 
 // Convert BMP Buffer to PNG-compatible binary file or save directly as high-res BMP/PNG
 function saveImage(filename, width, height, pixelFn) {

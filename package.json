@@ -1,6 +1,7 @@
 {
   "name": "desktopscape-peoria-splat",
   "version": "1.0.0",
+  "type": "module",
   "description": "Photorealistic 3D Gaussian Splat Desktop Engine of Peoria, IL with dynamic weather, winter river ice, time-of-day, and night city lighting from 4K YouTube videos.",
   "main": "electron/main.js",
   "homepage": "./",
