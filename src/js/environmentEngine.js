@@ -12,6 +12,7 @@ export class EnvironmentEngine {
     // Environmental state
     this.timeOfDay = 12.0; // 12:00 PM default
     this.autoSyncClock = false;
+    this.isPaused = false;
     
     this.weather = {
       preset: 'clear',      // 'clear', 'rain', 'snow', 'winter-ice', 'fog'
@@ -39,7 +40,9 @@ export class EnvironmentEngine {
     this.particles = [];
 
     this.resizeCanvas();
-    window.addEventListener('resize', () => this.resizeCanvas());
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('resize', () => this.resizeCanvas());
+    }
 
     this.initParticles();
   }
@@ -173,7 +176,19 @@ export class EnvironmentEngine {
     }
   }
 
+  pauseDelta() {
+    this.isPaused = true;
+  }
+
+  resumeDelta() {
+    this.isPaused = false;
+  }
+
   update(timeDelta = 0.016) {
+    if (this.isPaused) {
+      timeDelta = 0;
+    }
+
     if (this.autoSyncClock) {
       this.updateLighting();
     }
@@ -211,6 +226,8 @@ export class EnvironmentEngine {
       this.ctx.fillRect(0, 0, width, height);
     }
 
+    const stepFactor = (this.isPaused || timeDelta <= 0) ? 0 : (timeDelta / 0.016);
+
     // Render Weather Particles
     this.particles.forEach(p => {
       if (p.type === 'rain') {
@@ -221,8 +238,8 @@ export class EnvironmentEngine {
         this.ctx.lineTo(p.x - 2, p.y + p.length);
         this.ctx.stroke();
 
-        p.y += p.speed;
-        p.x -= 2;
+        p.y += p.speed * stepFactor;
+        p.x -= 2 * stepFactor;
 
         if (p.y > height) {
           p.y = -p.length;
@@ -234,8 +251,8 @@ export class EnvironmentEngine {
         this.ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        p.y += p.speedY;
-        p.x += p.speedX + Math.sin(p.y * 0.02) * 0.5;
+        p.y += p.speedY * stepFactor;
+        p.x += (p.speedX + Math.sin(p.y * 0.02) * 0.5) * stepFactor;
 
         if (p.y > height) {
           p.y = -p.radius;

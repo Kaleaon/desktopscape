@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSetTimeMode: (callback) => ipcRenderer.on('set-time-mode', (e, mode) => callback(mode)),
   onSetTime: (callback) => ipcRenderer.on('set-time', (e, hour) => callback(hour)),
   onSetWeather: (callback) => ipcRenderer.on('set-weather', (e, params) => callback(params)),
-  onDesktopModeChanged: (callback) => ipcRenderer.on('desktop-mode-changed', (e, isDesktop) => callback(isDesktop))
+  onDesktopModeChanged: (callback) => ipcRenderer.on('desktop-mode-changed', (e, isDesktop) => callback(isDesktop)),
+  onWindowVisibilityChanged: (callback) => ipcRenderer.on('window-visibility-changed', (e, isVisible) => callback(isVisible))
 });
