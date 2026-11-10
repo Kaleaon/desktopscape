@@ -124,7 +124,6 @@ describe('Asynchronous Web Worker Splat Depth Sorting', () => {
       appendChild: () => {}
     };
 
-    // GaussianSplatRenderer
     const renderer = new GaussianSplatRenderer(mockContainer);
 
     const sentMessages = [];
