@@ -31,12 +31,60 @@ class PeoriaDesktopscapeApp {
     // 5. UI Controls Overlay
     this.uiController = new UIController(this);
 
+    // 6. Adaptive Render Governor State
+    this.isVisible = true;
+    this.targetFps = 60;
+    this.lowFps = 1;
+    this.lastRenderTime = performance.now();
+    this.lastTime = performance.now();
+
+    this.initVisibilityListeners();
+
     // Load Default Base Scene (Peoria Riverfront & Illinois River)
     this.loadScene('riverfront');
 
     // Start Render Loop
-    this.lastTime = performance.now();
     this.animate();
+  }
+
+  initVisibilityListeners() {
+    // Document Page Visibility API Listener
+    if (typeof document !== 'undefined' && 'hidden' in document) {
+      document.addEventListener('visibilitychange', () => {
+        this.setVisibility(!document.hidden);
+      });
+    }
+
+    // Electron Context Bridge IPC Listener
+    if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.onWindowVisibilityChanged) {
+      window.electronAPI.onWindowVisibilityChanged((visible) => {
+        this.setVisibility(visible);
+      });
+    }
+  }
+
+  setVisibility(visible) {
+    const isVis = Boolean(visible);
+    if (this.isVisible === isVis) return;
+
+    this.isVisible = isVis;
+
+    if (this.isVisible) {
+      // Transitioning to visible: reset time tracking and resume delta to prevent frame jumps upon resumption
+      const now = performance.now();
+      this.lastTime = now;
+      this.lastRenderTime = now;
+      if (this.envEngine) {
+        this.envEngine.resumeDelta();
+      }
+      // Instantly resume full 60 FPS rendering within 50ms
+      this.renderFrame(now);
+    } else {
+      // Transitioning to hidden/minimized: pause env engine delta
+      if (this.envEngine) {
+        this.envEngine.pauseDelta();
+      }
+    }
   }
 
   setCameraMode(mode) {
@@ -98,8 +146,21 @@ class PeoriaDesktopscapeApp {
     requestAnimationFrame(() => this.animate());
 
     const now = performance.now();
-    const delta = (now - this.lastTime) / 1000.0;
+    const targetInterval = this.isVisible ? (1000 / this.targetFps) : (1000 / this.lowFps); // 1 FPS when hidden
+    const elapsedSinceLastRender = now - this.lastRenderTime;
+
+    if (elapsedSinceLastRender >= targetInterval - 1) {
+      this.renderFrame(now);
+    }
+  }
+
+  renderFrame(now = performance.now()) {
+    const rawDelta = (now - this.lastTime) / 1000.0;
     this.lastTime = now;
+    this.lastRenderTime = now;
+
+    // Cap delta during suspended/low-FPS state to prevent frame jumps upon resumption
+    const delta = this.isVisible ? Math.min(rawDelta, 0.1) : 0.016;
 
     if (this.cameraMode === 'tour') {
       // Smooth camera path along Illinois River riverfront
