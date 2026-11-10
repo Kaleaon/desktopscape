@@ -5,7 +5,6 @@ import { initSplats, sortSplats } from '../src/js/splatSortWorker.js';
 import { generatePeoriaRiverfrontScene } from '../src/js/peoriaScenes.js';
 import { GaussianSplatRenderer } from '../src/js/splatRenderer.js';
 
-
 describe('Asynchronous Web Worker Splat Depth Sorting', () => {
   test('splatSortWorker initializes positions and calculates splat count', () => {
     const positions = new Float32Array([
@@ -125,6 +124,7 @@ describe('Asynchronous Web Worker Splat Depth Sorting', () => {
       appendChild: () => {}
     };
 
+    // Initialize GaussianSplatRenderer
     const renderer = new GaussianSplatRenderer(mockContainer);
 
     const sentMessages = [];
