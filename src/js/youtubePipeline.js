@@ -4,6 +4,7 @@
  * and multi-temporal keyframe feature extraction.
  */
 
+import { clientErrorTranslationMiddleware } from './errorTranslationMiddleware.js';
 import { SplatDataset } from './splatDataset.js';
 
 export class YouTubePipelineClient {
@@ -22,7 +23,7 @@ export class YouTubePipelineClient {
     try {
       let result;
       if (window.electronAPI && window.electronAPI.processYouTubeUrl) {
-        const response = await window.electronAPI.processYouTubeUrl(youtubeUrl, options);
+        const response = await clientErrorTranslationMiddleware(window.electronAPI.processYouTubeUrl(youtubeUrl, options));
         if (!response.success) throw new Error(response.error || 'Failed to process YouTube video.');
         result = response.result;
       } else {

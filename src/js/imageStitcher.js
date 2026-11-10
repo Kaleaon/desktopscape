@@ -334,6 +334,7 @@ class ImageStitcher {
     return {
       pointsCount,
       matchedKeypointsCount: totalMatchesCount,
+      pairwiseMatches,
       frameCount: totalFrames,
       splatData: SplatDataset.fromLists(positions, scales, colors, rotations, {
         name: options.title || 'Stitched 3D Gaussian Splat Dataset'
