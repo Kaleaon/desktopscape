@@ -1,8 +1,10 @@
-const assert = require('assert');
-const { test, describe } = require('node:test');
+import assert from 'node:assert';
+import { test, describe } from 'node:test';
 
-const { initSplats, sortSplats } = require('../src/js/splatSortWorker');
-const { generatePeoriaRiverfrontScene } = require('../src/js/peoriaScenes');
+import { initSplats, sortSplats } from '../src/js/splatSortWorker.js';
+import { generatePeoriaRiverfrontScene } from '../src/js/peoriaScenes.js';
+import { GaussianSplatRenderer } from '../src/js/splatRenderer.js';
+
 
 describe('Asynchronous Web Worker Splat Depth Sorting', () => {
   test('splatSortWorker initializes positions and calculates splat count', () => {
@@ -123,8 +125,6 @@ describe('Asynchronous Web Worker Splat Depth Sorting', () => {
       appendChild: () => {}
     };
 
-    // Import GaussianSplatRenderer
-    const { GaussianSplatRenderer } = require('../src/js/splatRenderer');
     const renderer = new GaussianSplatRenderer(mockContainer);
 
     const sentMessages = [];
